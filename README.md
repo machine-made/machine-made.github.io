@@ -12,9 +12,11 @@ python3 check_site.py   # prints OK, or one line per failure
 python3 check_site.py --self-test   # breaks a copy of docs/ and checks that each break is caught
 sh gate.sh              # build twice and compare, self-tests, check, forbidden words
 python3 shots.py        # screenshots in shots/, light and dark; needs Playwright
+python3 brand.py --fonts DIR   # the profile hero and the avatar in brand/; needs Playwright, fontTools, brotli
+MM_FONTS=DIR sh gate.sh        # the gate, with brand/ built twice and compared
 ```
 
-`build.py` and `check_site.py` use only the Python 3.11 standard library. The build is
+`build.py`, `card.py` and `check_site.py` use only the Python 3.11 standard library. The build is
 deterministic: the same source tree gives the same bytes.
 
 ## Files
@@ -22,12 +24,15 @@ deterministic: the same source tree gives the same bytes.
 | Path | Holds |
 | --- | --- |
 | `site.json` | The content: name, line, subtitle line, the three project groups, houses |
-| `build.py` | The generator: page, style, mark, `llms.txt`, header weave |
+| `card.py` | The punched card: the one identity. Draws the card, the mark and the rows of dots |
+| `build.py` | The generator: page, style, `llms.txt`; uses `card.py` |
+| `brand.py` | The GitHub profile hero and the avatar, drawn from `card.py`. Writes `brand/` |
+| `brand/` | The profile hero (light and dark: SVG, PNG, PNG @2x) and `avatar.png`. Do not edit by hand |
 | `src/style.css` | The style. `build.py` adds the colours and writes `docs/style.css` |
 | `check_site.py` | The checks for the built site |
 | `gate.sh` | The gate |
 | `shots.py` | Screenshots at 1440 px and 375 px, the scroll check and the line-length check. Writes `shots/` |
-| `DESIGN.md` | The grid, the type, the colour and the weave algorithm |
+| `DESIGN.md` | The grid, the type, the colour and the card |
 | `docs/` | The built site. Do not edit by hand |
 
 ## Rules

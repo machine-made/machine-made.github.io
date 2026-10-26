@@ -1,290 +1,40 @@
 #!/usr/bin/env python3
 """Build the machine-made site: site.json in, docs/ out. Standard library only."""
 
-import hashlib
 import html
 import json
 import re
+import shutil
 import sys
-from collections.abc import Callable
-from functools import partial
 from pathlib import Path
 from typing import Any, NoReturn
 
+import card
+
 ROOT = Path(__file__).resolve().parent
 DOCS = ROOT / "docs"
-HEROES = DOCS / "heroes"
 
-MODES: dict[str, dict[str, str]] = {
-    "light": {
-        "bg": "#ffffff",
-        "fg": "#000000",
-        "muted": "#595959",
-        "rule": "#d9d9d9",
-        "warp": "#000000",
-        "weft": "#bdbdbd",
-    },
-    "dark": {
-        "bg": "#000000",
-        "fg": "#ffffff",
-        "muted": "#a6a6a6",
-        "rule": "#2e2e2e",
-        "warp": "#ffffff",
-        "weft": "#383838",
-    },
-}
-RED = "#e5251c"
-
-FRAME_W, FRAME_H = 1408, 469
-CELL = 4
-COLS, ROWS = 352, 116
-EMPTY_COLS = 120
-ORIGIN_X = EMPTY_COLS * CELL
-ORIGIN_Y = (FRAME_H - ROWS * CELL) // 2
-REGION_COLS = COLS - EMPTY_COLS
-PIXEL = 4
-PX, PY = REGION_COLS // PIXEL, ROWS // PIXEL
-RED_SPAN = 2
-SATINS = ((5, 2), (5, 3), (8, 3), (8, 5))
-MASK64 = (1 << 64) - 1
 FILE_NAME = re.compile(r"[a-z0-9][a-z0-9._-]*")
 REPO_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 COLOUR = re.compile(r"#[0-9a-f]{6}")
-
-
-class Rng:
-    """splitmix64: a small, stable generator. No global state."""
-
-    def __init__(self, seed: int) -> None:
-        self.state = seed & MASK64
-
-    def next(self) -> int:
-        self.state = (self.state + 0x9E3779B97F4A7C15) & MASK64
-        z = self.state
-        z = ((z ^ (z >> 30)) * 0xBF58476D1CE4E5B9) & MASK64
-        z = ((z ^ (z >> 27)) * 0x94D049BB133111EB) & MASK64
-        return z ^ (z >> 31)
-
-    def below(self, n: int) -> int:
-        return self.next() % n
-
-
-def seed_from(name: str) -> int:
-    return int.from_bytes(hashlib.sha256(name.encode("utf-8")).digest()[:8], "big")
-
-
-def fold(rank: int, half: int) -> int:
-    rank %= 2 * half
-    return rank if rank < half else 2 * half - 1 - rank
-
-
-def make_levels(rng: Rng) -> list[list[int]]:
-    """Motif: tonal level 0 (weft face), 1 (twill), 2 (warp face) per pixel, mirrored on both axes."""
-    half = 3 + rng.below(5)
-    kind = rng.below(3)
-
-    def distance(rx: int, ry: int) -> int:
-        if kind == 0:
-            return max(rx, ry)
-        if kind == 1:
-            return rx + ry
-        return max(rx, ry, (rx + ry + 1) * 2 // 3)
-
-    rings: list[int] = []
-    main = 2 * rng.below(2)
-    while len(rings) <= distance(half - 1, half - 1):
-        rings += [main] * (1 + rng.below(3))
-        if rng.below(3) == 0:
-            rings.append(1)
-        main = 2 - main
-    flips = {(a, b): rng.below(16) == 0 for a in range(half) for b in range(a, half)}
-
-    def level_at(x: int, y: int) -> int:
-        rx = fold(abs(2 * x - (PX - 1)) // 2, half)
-        ry = fold(abs(y - PY // 2), half)
-        level = rings[distance(rx, ry)]
-        if level != 1 and flips[(min(rx, ry), max(rx, ry))]:
-            level = 2 - level
-        return level
-
-    return [[level_at(x, y) for x in range(PX)] for y in range(PY)]
-
-
-def make_structure(rng: Rng) -> tuple[Callable[[int, int, int], bool], tuple[int, int, int]]:
-    ends, step = SATINS[rng.below(len(SATINS))]
-    twill = 1 + rng.below(3)
-
-    def warp_up(level: int, x: int, y: int) -> bool:
-        satin = (x + step * y) % ends == 0
-        if level == 0:
-            return satin
-        if level == 2:
-            return not satin
-        return (x + y) % 4 < twill
-
-    sizes = (ends, 4, ends)
-    return warp_up, sizes
-
-
-def rect(x: int, y: int, w: int, h: int) -> str:
-    return f"M{x} {y}h{w}v{h}h-{w}z"
-
-
-def thread_runs(size: tuple[int, int], up_at: Callable[[int, int], bool]) -> tuple[str, str]:
-    """Merge thread cells of one tile or patch into runs: warp up as columns, weft up as rows."""
-    warp: list[str] = []
-    weft: list[str] = []
-    for x in range(size[0]):
-        y = 0
-        while y < size[1]:
-            if not up_at(x, y):
-                y += 1
-                continue
-            start = y
-            while y < size[1] and up_at(x, y):
-                y += 1
-            warp.append(rect(x * CELL, start * CELL, CELL - 1, (y - start) * CELL))
-    for y in range(size[1]):
-        x = 0
-        while x < size[0]:
-            if up_at(x, y):
-                x += 1
-                continue
-            start = x
-            while x < size[0] and not up_at(x, y):
-                x += 1
-            weft.append(rect(start * CELL, y * CELL, (x - start) * CELL, CELL - 1))
-    return "".join(warp), "".join(weft)
-
-
-def mask_path(levels: list[list[int]], which: int) -> str:
-    """Rectangles of the pixels at one level, merged across rows."""
-    open_runs: dict[tuple[int, int], int] = {}
-    out: list[tuple[int, int, int, int]] = []
-    for y in range(PY + 1):
-        runs = set()
-        if y < PY:
-            x = 0
-            while x < PX:
-                if levels[y][x] != which:
-                    x += 1
-                    continue
-                start = x
-                while x < PX and levels[y][x] == which:
-                    x += 1
-                runs.add((start, x))
-        for run in list(open_runs):
-            if run not in runs:
-                top = open_runs.pop(run)
-                out.append((run[0], top, run[1] - run[0], y - top))
-        for run in runs:
-            open_runs.setdefault(run, y)
-    size = PIXEL * CELL
-    return "".join(
-        rect(ORIGIN_X + x * size, ORIGIN_Y + y * size, w * size, h * size)
-        for x, y, w, h in sorted(out, key=lambda r: (r[1], r[0]))
-    )
-
-
-def place_red(rng: Rng, levels: list[list[int]]) -> tuple[int, int]:
-    """The red cell: a spot where the motif is one level, so it never straddles an edge."""
-    for _ in range(200):
-        x = 3 + rng.below(PX - 6 - RED_SPAN)
-        y = 3 + rng.below(PY - 6 - RED_SPAN)
-        block = {levels[y + j][x + i] for i in range(RED_SPAN) for j in range(RED_SPAN)}
-        if len(block) == 1:
-            return x, y
-    return PX // 2 - 1, PY // 2 - 1
-
-
-def hero_svg(name: str) -> str:
-    rng = Rng(seed_from(name))
-    levels = make_levels(rng)
-    warp_up, sizes = make_structure(rng)
-    red_x, red_y = place_red(rng, levels)
-
-    defs: list[str] = []
-    for level in range(3):
-        size = sizes[level]
-        warp, weft = thread_runs((size, size), partial(warp_up, level))
-        defs.append(
-            f'<pattern id="p{level}" patternUnits="userSpaceOnUse" x="{ORIGIN_X}" y="{ORIGIN_Y}" '
-            f'width="{size * CELL}" height="{size * CELL}">'
-            f'<path class="k" d="{warp}"/><path class="w" d="{weft}"/></pattern>'
-        )
-    fields = [
-        f'<path fill="url(#p{level})" d="{mask_path(levels, level)}"/>'
-        for level in range(3)
-        if any(level in row for row in levels)
-    ]
-    left, top = red_x * PIXEL, red_y * PIXEL
-    warp, weft = thread_runs(
-        (RED_SPAN * PIXEL, RED_SPAN * PIXEL),
-        lambda x, y: warp_up(
-            levels[(top + y) // PIXEL][(left + x) // PIXEL], left + x, top + y
-        ),
-    )
-    cell = (
-        f'<g transform="translate({ORIGIN_X + left * CELL} {ORIGIN_Y + top * CELL})">'
-        f'<path class="r" d="{warp}{weft}"/></g>'
-    )
-
-    def theme(mode: str) -> str:
-        p = MODES[mode]
-        return f".g{{fill:{p['bg']}}}.k{{fill:{p['warp']}}}.w{{fill:{p['weft']}}}"
-
-    style = theme("light") + f".r{{fill:{RED}}}"
-    style += "@media (prefers-color-scheme:dark){" + theme("dark") + "}"
-    return (
-        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {FRAME_W} {FRAME_H}" '
-        f'width="{FRAME_W}" height="{FRAME_H}" role="img">\n'
-        f"<title>Weave pattern generated from the name {html.escape(name)}</title>\n"
-        f"<style>{style}</style>\n"
-        f"<defs>{''.join(defs)}</defs>\n"
-        f'<rect class="g" width="{FRAME_W}" height="{FRAME_H}"/>\n'
-        + "\n".join(fields)
-        + f"\n{cell}\n</svg>\n"
-    )
-
-
-def mark_svg() -> str:
-    size, gap, cell = 30, 3, 8
-    squares: list[str] = []
-    for row in range(3):
-        for col in range(3):
-            cls = "r" if (row, col) == (1, 1) else "k"
-            x, y = col * (cell + gap), row * (cell + gap)
-            squares.append(f'<rect class="{cls}" x="{x}" y="{y}" width="{cell}" height="{cell}"/>')
-    style = (
-        f".k{{fill:{MODES['light']['fg']}}}.r{{fill:{RED}}}"
-        f"@media (prefers-color-scheme:dark){{.k{{fill:{MODES['dark']['fg']}}}}}"
-    )
-    return (
-        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {size} {size}" '
-        f'width="{size}" height="{size}" role="img">\n'
-        "<title>machine-made mark</title>\n"
-        f"<style>{style}</style>\n" + "\n".join(squares) + "\n</svg>\n"
-    )
+FONTS_HREF = "https://fonts.googleapis.com/css2?family=Geist:wght@400;500&amp;family=Geist+Mono:wght@400;500&amp;display=swap"
 
 
 def root_css() -> str:
     def block(mode: str) -> str:
-        p = MODES[mode]
-        return (
-            f"--bg:{p['bg']};--fg:{p['fg']};--muted:{p['muted']};--rule:{p['rule']};"
-            f"--red:{RED};"
-        )
+        p = card.MODES[mode]
+        return f"--bg:{p['bg']};--fg:{p['fg']};--muted:{p['muted']};--rule:{p['rule']};--red:{card.RED};"
 
-    split = f"{ORIGIN_X / FRAME_W * 100:.3f}%"
-    ratios = f"--frame-ratio:{FRAME_W} / {FRAME_H};--weave-ratio:{FRAME_W - ORIGIN_X} / {FRAME_H};"
+    split = f"{card.CARD_X / card.FRAME_W * 100:.3f}%"
+    ratio = f"--frame-ratio:{card.FRAME_W} / {card.FRAME_H};"
     return (
-        f":root{{{block('light')}--split:{split};{ratios}}}\n"
+        f":root{{{block('light')}--split:{split};{ratio}}}\n"
         f"@media (prefers-color-scheme:dark){{:root{{{block('dark')}}}}}\n"
     )
 
 
 def check_palette() -> None:
-    colours = [RED] + [v for mode in ("light", "dark") for v in MODES[mode].values()]
+    colours = [card.RED] + [v for mode in ("light", "dark") for v in card.MODES[mode].values()]
     for colour in colours:
         if not COLOUR.fullmatch(colour):
             fail(f"palette colour {colour} is not #rrggbb", "Write each palette colour as lower-case #rrggbb with no alpha.")
@@ -324,14 +74,19 @@ def load_site() -> dict[str, Any]:
         )
     if not site["groups"]:
         fail("site.groups is empty", "List at least one group of projects.")
-    slugs: set[str] = {"main", "houses"}
+    for key, text in (("name", site["name"]), ("tagline", site["tagline"]), ("subtitle", site["subtitle"])):
+        if not text.strip() or not all(32 <= ord(c) < 127 for c in text):
+            fail(f"site.{key} is empty or not printable ASCII", f"Write site.{key} in printable ASCII; the card encodes it.")
+    if not card.sentences(site["tagline"]):
+        fail("site.tagline has no sentence", "Write the line as one or two short sentences.")
+    slugs: set[str] = {"main", "houses", slug(site["name"])}
     repos: list[str] = []
     for g, group in enumerate(site["groups"]):
         where = f"groups[{g}]"
         need(group, "title", str, where)
         need(group, "projects", list, where)
-        if not slug(group["title"]) or slug(group["title"]) in slugs:
-            fail(f"{where}.title gives no unique id", "Give each group its own title of letters and digits.")
+        if not slug(group["title"]) or slug(group["title"]) in slugs or not group["title"].isascii():
+            fail(f"{where}.title gives no unique id", "Give each group its own title of ASCII letters and digits.")
         slugs.add(slug(group["title"]))
         if not group["projects"]:
             fail(f"{where} has no projects", "Remove the group or list a project in it.")
@@ -367,6 +122,12 @@ def repo_url(site: dict[str, Any], repo: str) -> str:
     return f"https://github.com/{site['owner']}/{repo}"
 
 
+def rule_img(text: str) -> str:
+    """A decorative row of dots that encodes text in ASCII. It sits where a section rule would."""
+    width, height = card.rule_size(text)
+    return f'<img class="punch" src="rules/{slug(text)}.svg" width="{width}" height="{height}" alt="" aria-hidden="true">'
+
+
 def project_items(site: dict[str, Any], projects: list[dict[str, str]]) -> str:
     items = []
     for p in projects:
@@ -380,10 +141,12 @@ def project_items(site: dict[str, Any], projects: list[dict[str, str]]) -> str:
 
 def page_html(site: dict[str, Any]) -> str:
     name = site["name"]
-    sentences = re.split(r"(?<=[.!?])\s+", site["tagline"].strip())
-    tagline = " ".join(f"<span>{esc(s)}</span>" for s in sentences if s)
+    lines = card.sentences(site["tagline"])
+    tagline = " ".join(f"<span>{esc(line)}</span>" for line in lines)
+    wide_w, wide_h = card.FRAME_W, card.FRAME_H
+    narrow_w, narrow_h = round(card.card_width(len(lines[0]))), card.CARD_H
     groups = "\n".join(
-        f'<section class="section" aria-labelledby="{slug(g["title"])}">\n'
+        f'<section class="section" aria-labelledby="{slug(g["title"])}">\n{rule_img(g["title"])}\n'
         f'<div class="wrap split">\n<h2 id="{slug(g["title"])}">{esc(g["title"])}</h2>\n'
         f'<ul class="projects">\n{project_items(site, g["projects"])}\n</ul>\n</div>\n</section>'
         for g in site["groups"]
@@ -402,7 +165,7 @@ def page_html(site: dict[str, Any]) -> str:
 <link rel="icon" href="mark.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&amp;family=Geist+Mono:wght@400;500&amp;display=swap">
+<link rel="stylesheet" href="{FONTS_HREF}">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -410,19 +173,22 @@ def page_html(site: dict[str, Any]) -> str:
 <header class="masthead wrap">
 <div class="masthead-frame">
 <div class="masthead-text">
-<img class="mark" src="mark.svg" width="56" height="56" alt="Mark of {esc(name)}: a grid of three by three squares, one of them red">
-<div>
+<div class="brand">
+<img class="mark" src="mark.svg" width="{card.MARK_SIZE}" height="{card.MARK_SIZE}" alt="Mark of {esc(name)}: a small punched card with three by three holes, one of them red">
 <h1>{esc(name)}</h1>
+</div>
 <p class="tagline">{tagline}</p>
 <p class="subtitle">{esc(site['subtitle'])}</p>
 </div>
-</div>
-<img class="hero" src="heroes/{esc(name)}.svg" width="{FRAME_W}" height="{FRAME_H}" alt="Weave pattern generated from the name {esc(name)}">
+<img class="hero hero-wide" src="card.svg" width="{wide_w}" height="{wide_h}" alt="A punched card that encodes the line {esc(site['tagline'])} in 7-bit ASCII">
+<img class="hero hero-narrow" src="card-narrow.svg" width="{narrow_w}" height="{narrow_h}" alt="A punched card that encodes the first line, {esc(lines[0])}, in 7-bit ASCII">
+<p class="caption"><span class="wide">{esc(card.CAPTION)}</span><span class="narrow">{esc(card.CAPTION_NARROW)}</span></p>
 </div>
 </header>
 <main id="main">
 {groups}
 <section class="section" aria-labelledby="houses">
+{rule_img("Houses")}
 <div class="wrap split">
 <h2 id="houses">Houses</h2>
 <p>{houses}.</p>
@@ -430,6 +196,7 @@ def page_html(site: dict[str, Any]) -> str:
 </section>
 </main>
 <footer class="section">
+{rule_img(site['name'])}
 <div class="wrap">
 <p>{esc(site['footer'])}</p>
 <p>{site['year']}</p>
@@ -464,16 +231,24 @@ def main() -> None:
     check_palette()
     site = load_site()
     style = (ROOT / "src" / "style.css").read_text(encoding="utf-8")
-    name = site["name"]
-    write(DOCS / "index.html", page_html(site))
-    write(DOCS / "style.css", root_css() + style)
-    write(DOCS / "mark.svg", mark_svg())
-    write(DOCS / "llms.txt", llms_txt(site))
-    write(HEROES / f"{name}.svg", hero_svg(name))
-    for stale in sorted(HEROES.glob("*.svg")):
-        if stale.stem != name:
+    lines = card.sentences(site["tagline"])
+    files = {
+        "index.html": page_html(site),
+        "style.css": root_css() + style,
+        "mark.svg": card.mark_svg(),
+        "llms.txt": llms_txt(site),
+        "card.svg": card.card_svg(" ".join(lines), framed=True),
+        "card-narrow.svg": card.card_svg(lines[0], framed=False),
+    }
+    for title in [g["title"] for g in site["groups"]] + ["Houses", site["name"]]:
+        files[f"rules/{slug(title)}.svg"] = card.rule_svg(title)
+    for rel, text in files.items():
+        write(DOCS / rel, text)
+    shutil.rmtree(DOCS / "heroes", ignore_errors=True)
+    for stale in sorted((DOCS / "rules").glob("*")):
+        if f"rules/{stale.name}" not in files:
             stale.unlink()
-    print(json.dumps({"built": 5}))
+    print(json.dumps({"built": len(files)}))
 
 
 if __name__ == "__main__":

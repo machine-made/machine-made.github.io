@@ -6,13 +6,16 @@ import html
 import json
 import re
 import sys
+from collections.abc import Callable
+from functools import partial
 from pathlib import Path
+from typing import Any, NoReturn
 
 ROOT = Path(__file__).resolve().parent
 DOCS = ROOT / "docs"
 HEROES = DOCS / "heroes"
 
-PALETTE = {
+MODES: dict[str, dict[str, str]] = {
     "light": {
         "bg": "#ffffff",
         "fg": "#000000",
@@ -29,8 +32,8 @@ PALETTE = {
         "warp": "#ffffff",
         "weft": "#383838",
     },
-    "red": "#e5251c",
 }
+RED = "#e5251c"
 
 FRAME_W, FRAME_H = 1408, 469
 CELL = 4
@@ -52,42 +55,42 @@ COLOUR = re.compile(r"#[0-9a-f]{6}")
 class Rng:
     """splitmix64: a small, stable generator. No global state."""
 
-    def __init__(self, seed):
+    def __init__(self, seed: int) -> None:
         self.state = seed & MASK64
 
-    def next(self):
+    def next(self) -> int:
         self.state = (self.state + 0x9E3779B97F4A7C15) & MASK64
         z = self.state
         z = ((z ^ (z >> 30)) * 0xBF58476D1CE4E5B9) & MASK64
         z = ((z ^ (z >> 27)) * 0x94D049BB133111EB) & MASK64
         return z ^ (z >> 31)
 
-    def below(self, n):
+    def below(self, n: int) -> int:
         return self.next() % n
 
 
-def seed_from(name):
+def seed_from(name: str) -> int:
     return int.from_bytes(hashlib.sha256(name.encode("utf-8")).digest()[:8], "big")
 
 
-def fold(rank, half):
+def fold(rank: int, half: int) -> int:
     rank %= 2 * half
     return rank if rank < half else 2 * half - 1 - rank
 
 
-def make_levels(rng):
+def make_levels(rng: Rng) -> list[list[int]]:
     """Motif: tonal level 0 (weft face), 1 (twill), 2 (warp face) per pixel, mirrored on both axes."""
     half = 3 + rng.below(5)
     kind = rng.below(3)
 
-    def distance(rx, ry):
+    def distance(rx: int, ry: int) -> int:
         if kind == 0:
             return max(rx, ry)
         if kind == 1:
             return rx + ry
         return max(rx, ry, (rx + ry + 1) * 2 // 3)
 
-    rings = []
+    rings: list[int] = []
     main = 2 * rng.below(2)
     while len(rings) <= distance(half - 1, half - 1):
         rings += [main] * (1 + rng.below(3))
@@ -96,7 +99,7 @@ def make_levels(rng):
         main = 2 - main
     flips = {(a, b): rng.below(16) == 0 for a in range(half) for b in range(a, half)}
 
-    def level_at(x, y):
+    def level_at(x: int, y: int) -> int:
         rx = fold(abs(2 * x - (PX - 1)) // 2, half)
         ry = fold(abs(y - PY // 2), half)
         level = rings[distance(rx, ry)]
@@ -107,11 +110,11 @@ def make_levels(rng):
     return [[level_at(x, y) for x in range(PX)] for y in range(PY)]
 
 
-def make_structure(rng):
+def make_structure(rng: Rng) -> tuple[Callable[[int, int, int], bool], tuple[int, int, int]]:
     ends, step = SATINS[rng.below(len(SATINS))]
     twill = 1 + rng.below(3)
 
-    def warp_up(level, x, y):
+    def warp_up(level: int, x: int, y: int) -> bool:
         satin = (x + step * y) % ends == 0
         if level == 0:
             return satin
@@ -123,13 +126,14 @@ def make_structure(rng):
     return warp_up, sizes
 
 
-def rect(x, y, w, h):
+def rect(x: int, y: int, w: int, h: int) -> str:
     return f"M{x} {y}h{w}v{h}h-{w}z"
 
 
-def thread_runs(size, up_at):
+def thread_runs(size: tuple[int, int], up_at: Callable[[int, int], bool]) -> tuple[str, str]:
     """Merge thread cells of one tile or patch into runs: warp up as columns, weft up as rows."""
-    warp, weft = [], []
+    warp: list[str] = []
+    weft: list[str] = []
     for x in range(size[0]):
         y = 0
         while y < size[1]:
@@ -153,9 +157,10 @@ def thread_runs(size, up_at):
     return "".join(warp), "".join(weft)
 
 
-def mask_path(levels, which):
+def mask_path(levels: list[list[int]], which: int) -> str:
     """Rectangles of the pixels at one level, merged across rows."""
-    open_runs, out = {}, []
+    open_runs: dict[tuple[int, int], int] = {}
+    out: list[tuple[int, int, int, int]] = []
     for y in range(PY + 1):
         runs = set()
         if y < PY:
@@ -181,7 +186,7 @@ def mask_path(levels, which):
     )
 
 
-def place_red(rng, levels):
+def place_red(rng: Rng, levels: list[list[int]]) -> tuple[int, int]:
     """The red cell: a spot where the motif is one level, so it never straddles an edge."""
     for _ in range(200):
         x = 3 + rng.below(PX - 6 - RED_SPAN)
@@ -192,16 +197,16 @@ def place_red(rng, levels):
     return PX // 2 - 1, PY // 2 - 1
 
 
-def hero_svg(name):
+def hero_svg(name: str) -> str:
     rng = Rng(seed_from(name))
     levels = make_levels(rng)
     warp_up, sizes = make_structure(rng)
     red_x, red_y = place_red(rng, levels)
 
-    defs = []
+    defs: list[str] = []
     for level in range(3):
         size = sizes[level]
-        warp, weft = thread_runs((size, size), lambda x, y, lv=level: warp_up(lv, x, y))
+        warp, weft = thread_runs((size, size), partial(warp_up, level))
         defs.append(
             f'<pattern id="p{level}" patternUnits="userSpaceOnUse" x="{ORIGIN_X}" y="{ORIGIN_Y}" '
             f'width="{size * CELL}" height="{size * CELL}">'
@@ -224,11 +229,11 @@ def hero_svg(name):
         f'<path class="r" d="{warp}{weft}"/></g>'
     )
 
-    def theme(mode):
-        p = PALETTE[mode]
+    def theme(mode: str) -> str:
+        p = MODES[mode]
         return f".g{{fill:{p['bg']}}}.k{{fill:{p['warp']}}}.w{{fill:{p['weft']}}}"
 
-    style = theme("light") + f".r{{fill:{PALETTE['red']}}}"
+    style = theme("light") + f".r{{fill:{RED}}}"
     style += "@media (prefers-color-scheme:dark){" + theme("dark") + "}"
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {FRAME_W} {FRAME_H}" '
@@ -242,17 +247,17 @@ def hero_svg(name):
     )
 
 
-def mark_svg():
+def mark_svg() -> str:
     size, gap, cell = 30, 3, 8
-    squares = []
+    squares: list[str] = []
     for row in range(3):
         for col in range(3):
             cls = "r" if (row, col) == (1, 1) else "k"
             x, y = col * (cell + gap), row * (cell + gap)
             squares.append(f'<rect class="{cls}" x="{x}" y="{y}" width="{cell}" height="{cell}"/>')
     style = (
-        f".k{{fill:{PALETTE['light']['fg']}}}.r{{fill:{PALETTE['red']}}}"
-        f"@media (prefers-color-scheme:dark){{.k{{fill:{PALETTE['dark']['fg']}}}}}"
+        f".k{{fill:{MODES['light']['fg']}}}.r{{fill:{RED}}}"
+        f"@media (prefers-color-scheme:dark){{.k{{fill:{MODES['dark']['fg']}}}}}"
     )
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {size} {size}" '
@@ -262,12 +267,12 @@ def mark_svg():
     )
 
 
-def root_css():
-    def block(mode):
-        p = PALETTE[mode]
+def root_css() -> str:
+    def block(mode: str) -> str:
+        p = MODES[mode]
         return (
             f"--bg:{p['bg']};--fg:{p['fg']};--muted:{p['muted']};--rule:{p['rule']};"
-            f"--red:{PALETTE['red']};"
+            f"--red:{RED};"
         )
 
     split = f"{ORIGIN_X / FRAME_W * 100:.3f}%"
@@ -278,29 +283,28 @@ def root_css():
     )
 
 
-def check_palette():
-    colours = [PALETTE["red"]] + [v for mode in ("light", "dark") for v in PALETTE[mode].values()]
+def check_palette() -> None:
+    colours = [RED] + [v for mode in ("light", "dark") for v in MODES[mode].values()]
     for colour in colours:
         if not COLOUR.fullmatch(colour):
             fail(f"palette colour {colour} is not #rrggbb", "Write each palette colour as lower-case #rrggbb with no alpha.")
 
 
-def fail(message, fix):
+def fail(message: str, fix: str) -> NoReturn:
     print(json.dumps({"error": message, "fix": fix}), file=sys.stderr)
     sys.exit(2)
 
 
-def load_site():
+def load_site() -> dict[str, Any]:
     path = ROOT / "site.json"
     try:
-        site = json.loads(path.read_text(encoding="utf-8"))
+        site: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         fail(f"cannot read site.json: {exc}", "Fix site.json so that it is valid JSON.")
 
-    def need(obj, key, kind, where):
+    def need(obj: object, key: str, kind: type, where: str) -> None:
         if not isinstance(obj, dict) or type(obj.get(key)) is not kind:
             fail(f"{where}.{key} is missing or has the wrong type", f"Set {where}.{key} in site.json.")
-        return obj[key]
 
     for key, kind in (
         ("name", str),
@@ -337,15 +341,15 @@ def load_site():
     return site
 
 
-def esc(text):
+def esc(text: str) -> str:
     return html.escape(text, quote=True)
 
 
-def repo_url(site, repo):
+def repo_url(site: dict[str, Any], repo: str) -> str:
     return f"https://github.com/{site['owner']}/{repo}"
 
 
-def page_html(site):
+def page_html(site: dict[str, Any]) -> str:
     name = site["name"]
     sentences = re.split(r"(?<=[.!?])\s+", site["tagline"].strip())
     tagline = " ".join(f"<span>{esc(s)}</span>" for s in sentences if s)
@@ -421,7 +425,7 @@ def page_html(site):
 """
 
 
-def llms_txt(site):
+def llms_txt(site: dict[str, Any]) -> str:
     projects = "\n".join(
         f"- [{p['repo']}]({repo_url(site, p['repo'])}): {p['line']}" for p in site["projects"]
     )
@@ -433,12 +437,12 @@ def llms_txt(site):
     )
 
 
-def write(path, text):
+def write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8", newline="\n")
 
 
-def main():
+def main() -> None:
     check_palette()
     site = load_site()
     style = (ROOT / "src" / "style.css").read_text(encoding="utf-8")

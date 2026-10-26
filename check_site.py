@@ -50,10 +50,14 @@ FRAME = (1408, 469)
 FORBIDDEN = re.compile(
     r"[$\u20ac\u00a3]\s?[0-9]|[0-9]\s?(?:usd|chf|eur)\b|tokens|punchcard|night-shift|nexus", re.I
 )
-VOID = {"meta", "link", "img", "br", "hr", "input", "source", "area", "base", "col", "embed", "wbr"}
+VOID = {"meta", "link", "img", "br", "hr", "input", "source", "track", "area", "base", "col", "embed", "wbr"}
 GITHUB = re.compile(r"github\.com/[\w.-]+(?:/[\w.-]+)*", re.I)
 RS_NAME = re.compile(r"(?<![\w-])[a-z0-9][a-z0-9._-]*-rs(?![\w-])", re.I)
 MAX_WORDS = 25
+# Tags that run code or load a resource. The page needs none of them.
+FORBIDDEN_TAGS = (
+    "script", "iframe", "object", "embed", "form", "input", "button", "audio", "video", "source", "track",
+)
 ALLOWED_ATTRS = {
     "lang", "charset", "name", "content", "rel", "href", "type", "crossorigin", "class", "id",
     "src", "width", "height", "alt", "loading", "aria-labelledby",
@@ -235,7 +239,7 @@ def contrast(a: str, b: str) -> float:
 
 
 HEX = re.compile(r"#[0-9a-fA-F]+\b")
-FUNC = re.compile(r"\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix|light-dark|device-cmyk)\(")
+FUNC = re.compile(r"\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix|light-dark|device-cmyk)\(", re.I)
 
 
 def colours_of(text: str, where: str) -> set[str]:
@@ -254,7 +258,7 @@ def colours_of(text: str, where: str) -> set[str]:
         found.add("#" + h.lower())
     if FUNC.search(text):
         fail("colour", f"{where} uses a colour function; write colours as hex")
-    if "gradient" in text:
+    if "gradient" in text.lower():
         fail("colour", f"{where} uses a gradient")
     return found
 
@@ -316,7 +320,7 @@ def check_html(page: Page, html_text: str, name: str | None, hero_rel: str | Non
         check_colour_names(css, "index.html")
         if split_accent(colours_of(css, "index.html")):
             fail("accent", "index.html has a style block with a colour of its own; colours belong in style.css")
-    for forbidden in ("script", "iframe", "object", "embed", "form", "input", "button"):
+    for forbidden in FORBIDDEN_TAGS:
         if forbidden in page.tags:
             fail("no-js", f"<{forbidden}> is not allowed on a page that needs no script")
     for tag in ("header", "main", "footer", "h1", "h2", "ul"):
@@ -464,6 +468,56 @@ def check_forbidden() -> None:
                 fail("forbidden", f"docs/{path.relative_to(DOCS).as_posix()} contains {hit.group(0)!r}")
 
 
+def rule_declarations(css: str) -> Iterator[dict[str, str]]:
+    """The declarations of every rule block in css, by lower-case property. The last one wins."""
+    css = re.sub(r"/\*.*?\*/", " ", css, flags=re.S)
+    for match in re.finditer(r"[^{};]*\{([^{}]*)\}", css):
+        found: dict[str, str] = {}
+        for declaration in match.group(1).split(";"):
+            prop, colon, value = declaration.partition(":")
+            if colon:
+                found[prop.strip().lower()] = re.sub(r"\s*!important\s*$", "", value.strip(), flags=re.I)
+        yield found
+
+
+def text_colour(value: str, prop: str, mode: dict[str, str]) -> str | None:
+    """The hex that a color or background value gives in one mode. None when it takes what is there.
+
+    Only a palette token, black, white or transparent sets a colour. Anything else fails."""
+    v = value.lower()
+    token = re.fullmatch(r"var\(\s*--([a-z-]+)\s*\)", v)
+    if token and token.group(1) in mode:
+        return mode[token.group(1)]
+    if v in GREY_NAMES:
+        return GREY_NAMES[v]
+    if v == "transparent":
+        return mode["bg"]
+    if v in ("inherit", "currentcolor"):
+        return None
+    fail("contrast", f"style.css sets {prop}: {value[:30]!r}; use a palette token (var(--name)), black, white or transparent")
+    return None
+
+
+def check_text_colours(css: str, light: dict[str, str], night: dict[str, str]) -> None:
+    """Measure the colours that text uses: each color and background in style.css, against its partner.
+
+    A rule with only color is measured on --bg. A rule with only a background is measured with --fg."""
+    for decls in rule_declarations(css):
+        fg = decls.get("color")
+        bgs: list[str | None] = [decls[k] for k in ("background-color", "background") if k in decls]
+        if fg is None and not bgs:
+            continue
+        for mode in (light, night):
+            fg_hex = text_colour(fg, "color", mode) if fg is not None else None
+            for bg in bgs or [None]:
+                bg_hex = text_colour(bg, "background", mode) if bg is not None else None
+                top, ground = fg_hex or mode["fg"], bg_hex or mode["bg"]
+                need = 3.0 if top == mode["red"] else 4.5
+                ratio = contrast(top, ground)
+                if ratio < need:
+                    fail("contrast", f"style.css has text {top} on {ground} at {ratio:.2f}, below {need}")
+
+
 def check_css() -> None:
     css = read("style.css")
     if not css:
@@ -499,6 +553,7 @@ def check_css() -> None:
         fail("dark", "the red must be the same in light and dark")
     check_refs(css, "style.css", "css")
     check_colour_names(css, "style.css")
+    check_text_colours(css, light, night)
     accents = split_accent(colours_of(css, "style.css"))
     if accents != {light["red"].lower()}:
         fail("accent", f"style.css needs exactly one accent colour, the red; found {sorted(accents)}")
@@ -672,15 +727,17 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 
 def load_deny(path: str | None) -> list[str]:
+    """One name per line. Blank lines and lines that start with # are dropped. A name may hold spaces."""
     path = path or os.environ.get("MM_DENY_FILE")
     if not path:
         return []
     try:
-        names = Path(path).read_text(encoding="utf-8").split()
+        lines = Path(path).read_text(encoding="utf-8").splitlines()
     except OSError as exc:
         print(f"FAIL deny: cannot read the deny file: {exc.strerror}")
         sys.exit(2)
-    return [n for n in names if n and not n.startswith("#")]
+    names = [line.strip() for line in lines]
+    return [name for name in names if name and not name.startswith("#")]
 
 
 def run_checks(deny: list[str]) -> list[str]:
@@ -812,6 +869,10 @@ def self_test() -> None:
         ("protocol-relative link", "links", [], lambda d: edit(d, "index.html", 'href="style.css"', 'href="//example.com/x.css"')),
         ("look-alike font host", "links", [], lambda d: edit(d, "index.html", 'href="https://fonts.gstatic.com"', 'href="https://fonts.gstatic.com.example.net"')),
         ("font host with userinfo", "links", [], lambda d: edit(d, "index.html", 'href="https://fonts.googleapis.com"', 'href="https://fonts.googleapis.com@example.net"')),
+        *[
+            (f"{tag} tag", "no-js", [], lambda d, tag=tag: edit(d, "index.html", "<body>", f'<body><{tag} src="https://example.net/x"></{tag}>'))
+            for tag in ("audio", "video", "source", "track", "iframe", "object", "embed")
+        ],
         ("script tag", "no-js", [], lambda d: edit(d, "index.html", "</body>", "<script>1</script></body>")),
         ("image without alt", "a11y", [], lambda d: edit(d, "index.html", alt, 'alt=" "')),
         ("money amount", "forbidden", [], lambda d: edit(d, "llms.txt", "## Houses", "$5\n\n## Houses")),
@@ -836,7 +897,7 @@ def self_test() -> None:
         ("css url on a look-alike font host", "links", [], lambda d: edit(d, "style.css", ":root{", "a{background:url(https://fonts.gstatic.com.example.net/f.woff2)}:root{")),
         ("css url leaves docs/", "links", [], lambda d: edit(d, "style.css", ":root{", "a{background:url(../README.md)}:root{")),
         ("css data url", "links", [], lambda d: edit(d, "style.css", ":root{", "a{background:url(data:image/png;base64,AAAA)}:root{")),
-        ("css uses a font host and a local file", None, [], lambda d: edit(d, "style.css", ":root{", '@import url("https://fonts.googleapis.com/css2?family=Geist");a{background:url(mark.svg)}:root{')),
+        ("css uses a font host and a local file", None, [], lambda d: edit(d, "style.css", ":root{", '@import url("https://fonts.googleapis.com/css2?family=Geist");a{list-style-image:url(mark.svg)}:root{')),
         ("script in the hero svg", "no-js", [], lambda d: edit(d, hero, "<title>", "<script>1</script><title>")),
         ("event handler in the mark svg", "no-js", [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<rect onclick="x()" class="k"')),
         ("external href in the hero svg", "links", [], lambda d: edit(d, hero, "<defs>", '<defs><use href="https://example.net/x.svg#a"/>')),
@@ -862,6 +923,14 @@ def self_test() -> None:
         ("named fallback of a fragment paint", "accent", [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<rect fill="url(#a) red" class="k"')),
         ("function fallback of a fragment paint", "colour", [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<rect fill="url(#a) rgb(0,0,255)" class="k"')),
         ("keyword fallback of a fragment paint", None, [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<rect fill="url(#a) currentColor" class="k"')),
+        ("text colour as a hex grey", "contrast", [], lambda d: edit(d, "style.css", "box-sizing", "color:#777;box-sizing")),
+        ("text colour from a low-contrast token", "contrast", [], lambda d: edit(d, "style.css", "box-sizing", "color:var(--rule);box-sizing")),
+        ("text on a low-contrast background token", "contrast", [], lambda d: edit(d, "style.css", "box-sizing", "color:var(--fg);background:var(--muted);box-sizing")),
+        ("background shorthand with more than a token", "contrast", [], lambda d: edit(d, "style.css", "box-sizing", "background:var(--bg) url(mark.svg);box-sizing")),
+        ("text colour from an unknown token", "contrast", [], lambda d: edit(d, "style.css", "box-sizing", "color:var(--nope);box-sizing")),
+        ("a pair of palette tokens is allowed", None, [], lambda d: edit(d, "style.css", "box-sizing", "color:var(--muted);background:var(--bg) !important;box-sizing")),
+        ("upper-case colour function", "colour", [], lambda d: edit(d, "style.css", "box-sizing", "color:RGB(0,0,255);box-sizing")),
+        ("upper-case gradient", "colour", [], lambda d: edit(d, "style.css", "box-sizing", "background:LINEAR-GRADIENT(red,blue);box-sizing")),
         ("private name as an element name", "private", ["zzprivate"], lambda d: edit(d, "index.html", "<body>", "<body><zzprivate></zzprivate>")),
     ]
     total, bad = 0, 0
@@ -897,6 +966,9 @@ def self_test() -> None:
         report(renamed_site_passes("loom-x"), "a site under another name does not pass the checks")
         report(tagline_keeps_its_tail(), "build.py cuts a tagline whose last part has no end mark")
         missing = str(Path(tmp) / "missing")
+        denied = Path(tmp) / "deny.txt"
+        denied.write_text("# a comment\n\nzz one\n  zz two  \n#zz three\n", encoding="utf-8")
+        report(load_deny(str(denied)) == ["zz one", "zz two"], "load_deny does not keep one name per line")
         report(cli_fails(["--deny"], "FAIL args:"), "--deny without a file")
         report(cli_fails(["--deny", missing], "FAIL deny:"), "--deny with a missing file")
         report(cli_fails(["--no-such-flag"], "FAIL args:"), "an unknown flag")

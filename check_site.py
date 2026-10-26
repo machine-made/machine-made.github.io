@@ -11,6 +11,8 @@ FILE has one name per line. Without it, the allowlist rules still reject every l
 repository-shaped name that is not public.
 """
 
+import argparse
+import json
 import os
 import re
 import shutil
@@ -39,7 +41,8 @@ PUBLIC_REPOS = (
 HOUSE_URLS = ("https://github.com/openfluids", "https://github.com/BoringQuantSystems")
 TAGLINE = "Made by machines. Proven for machines."
 FOOTER = "Made by agents. Directed by a person."
-FILES = {"index.html", "style.css", "mark.svg", "llms.txt", "heroes/machine-made.svg"}
+BASE_FILES = {"index.html", "style.css", "mark.svg", "llms.txt"}
+FILE_NAME = re.compile(r"[a-z0-9][a-z0-9._-]*")
 FONT_HOSTS = ("fonts.googleapis.com", "fonts.gstatic.com")
 FRAME = (1408, 469)
 FORBIDDEN = re.compile(
@@ -57,6 +60,19 @@ def fail(rule, message):
     line = f"FAIL {rule}: {message}"
     if line not in failures:
         failures.append(line)
+
+
+def site_name():
+    """The site name from site.json, under the same file-name rule as build.py. None if unusable."""
+    try:
+        name = json.loads((ROOT / "site.json").read_text(encoding="utf-8"))["name"]
+    except (OSError, ValueError, KeyError, TypeError):
+        fail("site", "site.json has no readable name")
+        return None
+    if not isinstance(name, str) or not FILE_NAME.fullmatch(name) or ".." in name:
+        fail("site", "site.json name is not a safe file name")
+        return None
+    return name
 
 
 class Page(HTMLParser):
@@ -188,11 +204,12 @@ def read(rel):
     return path.read_text(encoding="utf-8", errors="replace")
 
 
-def check_files():
+def check_files(hero_rel):
+    wanted = BASE_FILES | ({hero_rel} if hero_rel else set())
     present = {p.relative_to(DOCS).as_posix() for p in DOCS.rglob("*") if p.is_file()}
-    for extra in sorted(present - FILES):
+    for extra in sorted(present - wanted):
         fail("files", f"docs/{extra} is not part of the one-page site")
-    for missing in sorted(FILES - present):
+    for missing in sorted(wanted - present):
         fail("files", f"docs/{missing} is missing; run python3 build.py")
 
 
@@ -206,7 +223,7 @@ def local_target(href):
     return target if root in target.parents else None
 
 
-def check_html(page, html_text):
+def check_html(page, html_text, name, hero_rel):
     for problem in page.problems:
         fail("parse", problem)
     if page.stack:
@@ -233,6 +250,10 @@ def check_html(page, html_text):
         fail("semantic", "the page needs exactly one h1")
     if page.tags.count("main") != 1:
         fail("semantic", "the page needs exactly one main")
+    if name and ("h1", name) not in page.headings:
+        fail("content", f"the h1 must be the site name, {name}")
+    if hero_rel and not any(img.get("src") == hero_rel for img in page.imgs):
+        fail("hero", f"the header must show {hero_rel}")
     first = page.first_link or {}
     if first.get("href") != "#main" or "main" not in page.ids:
         fail("a11y", "the first link must be a skip link to #main")
@@ -388,10 +409,10 @@ def rects_of(d):
         yield x, y, w, h
 
 
-def check_svgs():
-    red = None
-    for rel in ("mark.svg", "heroes/machine-made.svg"):
-        text = read(rel)
+def check_svgs(hero_rel):
+    trees = {}
+    for rel in ("mark.svg", hero_rel):
+        text = read(rel) if rel else ""
         if not text:
             continue
         try:
@@ -399,15 +420,14 @@ def check_svgs():
         except ET.ParseError as exc:
             fail("parse", f"{rel} is not valid XML: {exc}")
             continue
+        trees[rel] = tree
         style = " ".join(e.text or "" for e in tree.iter("{http://www.w3.org/2000/svg}style"))
         accents = split_accent(colours_of(style, rel), rel)
         if accents != {"#e5251c"}:
             fail("accent", f"{rel} needs exactly one accent colour; found {sorted(accents)}")
-        red = red or accents
-    hero = read("heroes/machine-made.svg")
-    if not hero:
+    tree = trees.get(hero_rel)
+    if tree is None:
         return
-    tree = ET.fromstring(hero)
     if tree.get("viewBox") != f"0 0 {FRAME[0]} {FRAME[1]}":
         fail("hero", f"the hero viewBox is not 0 0 {FRAME[0]} {FRAME[1]}")
     ns = "{http://www.w3.org/2000/svg}"
@@ -432,7 +452,7 @@ def check_svgs():
         fail("hero", f"the weave starts at x={least}, inside the left third (x<{third:.0f})")
 
 
-def check_llms():
+def check_llms(name):
     text = read("llms.txt")
     if not text:
         return
@@ -440,39 +460,54 @@ def check_llms():
     expected = [f"https://github.com/{OWNER}/{r}" for r in PUBLIC_REPOS] + list(HOUSE_URLS)
     if sorted(links) != sorted(expected):
         fail("llms", "llms.txt must list exactly the eight public repositories and the two houses")
-    if not text.startswith("# machine-made\n\n> " + TAGLINE):
+    if name and not text.startswith(f"# {name}\n\n> {TAGLINE}"):
         fail("llms", "llms.txt must start with the name and the line")
     lines = (re.sub(r"^[#>-]+\s*", "", line) for line in text.splitlines())
     check_prose([re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", line) for line in lines], "llms.txt")
 
 
-def load_deny():
-    path = None
-    args = sys.argv[1:]
-    if "--deny" in args:
-        path = args[args.index("--deny") + 1]
+class Args(argparse.ArgumentParser):
+    def error(self, message):
+        print(f"FAIL args: {message}")
+        sys.exit(2)
+
+
+def parse_args(argv):
+    parser = Args(description="Check the built site in docs/.", allow_abbrev=False)
+    parser.add_argument("--deny", metavar="FILE", help="names that must not appear in the output")
+    parser.add_argument("--self-test", action="store_true", help="break a copy of docs/ and check the breaks are caught")
+    return parser.parse_args(argv)
+
+
+def load_deny(path):
     path = path or os.environ.get("MM_DENY_FILE")
     if not path:
         return []
-    names = Path(path).read_text(encoding="utf-8").split()
+    try:
+        names = Path(path).read_text(encoding="utf-8").split()
+    except OSError as exc:
+        print(f"FAIL deny: cannot read the deny file: {exc.strerror}")
+        sys.exit(2)
     return [n for n in names if n and not n.startswith("#")]
 
 
 def run_checks(deny):
     del failures[:]
-    check_files()
+    name = site_name()
+    hero_rel = f"heroes/{name}.svg" if name else None
+    check_files(hero_rel)
     html_text = read("index.html")
     if html_text:
         page = Page()
         page.feed(html_text)
         page.close()
-        check_html(page, html_text)
+        check_html(page, html_text, name, hero_rel)
         visible = check_content(page, html_text)
         check_leaks(visible, deny)
     check_forbidden()
     check_css()
-    check_svgs()
-    check_llms()
+    check_svgs(hero_rel)
+    check_llms(name)
     return list(failures)
 
 
@@ -487,8 +522,8 @@ def edit(docs, name, old, new):
     path.write_text(text.replace(old, new, 1), encoding="utf-8")
 
 
-def move_weave(docs):
-    path = docs / "heroes" / "machine-made.svg"
+def move_weave(docs, hero):
+    path = docs / hero
     text = path.read_text(encoding="utf-8")
     moved = re.sub(r'(fill="url\(#p\d\)" d="M)\d+', r"\g<1>100", text, count=1)
     if moved == text:
@@ -496,33 +531,71 @@ def move_weave(docs):
     path.write_text(moved, encoding="utf-8")
 
 
+def site_copy(root, name):
+    """A copy of the generator in root, with site.json renamed to name."""
+    (root / "src").mkdir(parents=True)
+    for rel in ("build.py", "src/style.css", "site.json"):
+        shutil.copy(ROOT / rel, root / rel)
+    text = (root / "site.json").read_text(encoding="utf-8")
+    renamed = text.replace(f'"name": "{site_name()}"', f'"name": "{name}"', 1)
+    (root / "site.json").write_text(renamed, encoding="utf-8")
+    env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+    return subprocess.run([sys.executable, str(root / "build.py")], capture_output=True, env=env)
+
+
 def build_rejects(bad_name):
-    """Run a copy of build.py on a bad site name. True when it exits 2 and writes nothing outside docs/."""
+    """True when build.py exits 2 on bad_name and writes no svg outside docs/."""
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp) / "site"
-        (root / "src").mkdir(parents=True)
-        for rel in ("build.py", "src/style.css", "site.json"):
-            shutil.copy(ROOT / rel, root / rel)
-        text = (root / "site.json").read_text(encoding="utf-8")
-        (root / "site.json").write_text(text.replace('"name": "machine-made"', f'"name": "{bad_name}"', 1))
-        env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
-        done = subprocess.run([sys.executable, str(root / "build.py")], capture_output=True, env=env)
+        done = site_copy(root, bad_name)
         outside = [p.name for p in Path(tmp).rglob("*.svg") if root / "docs" not in p.parents]
         return done.returncode == 2 and not outside
+
+
+def renamed_site_passes(new_name):
+    """True when a site built under another name passes every check."""
+    global ROOT, DOCS
+    real_root, real_docs = ROOT, DOCS
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "site"
+        if site_copy(root, new_name).returncode != 0:
+            return False
+        ROOT, DOCS = root, root / "docs"
+        try:
+            return not run_checks([])
+        finally:
+            ROOT, DOCS = real_root, real_docs
+
+
+def cli_fails(args, prefix):
+    """True when check_site.py exits 2 with exactly one line that starts with prefix."""
+    env = {k: v for k, v in os.environ.items() if k != "MM_DENY_FILE"}
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    done = subprocess.run(
+        [sys.executable, str(Path(__file__).resolve()), *args], capture_output=True, text=True, env=env
+    )
+    lines = done.stdout.splitlines()
+    return done.returncode == 2 and len(lines) == 1 and lines[0].startswith(prefix) and not done.stderr
 
 
 def self_test():
     global DOCS
     real = DOCS
+    name = site_name()
+    if not name:
+        print("\n".join(failures))
+        sys.exit(1)
+    hero = f"heroes/{name}.svg"
+    alt = f'alt="Weave pattern generated from the name {name}"'
     cases = [
         ("private name in style.css", "private", ["zzprivate"], lambda d: edit(d, "style.css", "box-sizing", "/* zzprivate */ box-sizing")),
-        ("private name in the hero svg", "private", ["zzprivate"], lambda d: edit(d, "heroes/machine-made.svg", "<title>", "<title>zzprivate ")),
+        ("private name in the hero svg", "private", ["zzprivate"], lambda d: edit(d, hero, "<title>", "<title>zzprivate ")),
         ("private name in an html comment", "private", ["zzprivate"], lambda d: edit(d, "index.html", "<body>", "<body><!-- zzprivate -->")),
-        ("private link", "links", [], lambda d: edit(d, "index.html", "machine-made/bun-do", "machine-made/zzprivate")),
+        ("private link", "links", [], lambda d: edit(d, "index.html", f"{OWNER}/bun-do", f"{OWNER}/zzprivate")),
         ("private rs name in llms.txt", "private", [], lambda d: edit(d, "llms.txt", "## Houses", "zz-rs\n\n## Houses")),
-        ("long project line", "voice", [], lambda d: edit(d, "index.html", "Homebrew casks for machine-made software", LONG)),
+        ("long project line", "voice", [], lambda d: edit(d, "index.html", "Homebrew casks for", LONG + " Homebrew casks for")),
         ("long houses line", "voice", [], lambda d: edit(d, "index.html", "(deterministic quant engines)", "(" + LONG[:-1] + ")")),
-        ("long line in llms.txt", "voice", [], lambda d: edit(d, "llms.txt", "Homebrew casks for machine-made software", LONG)),
+        ("long line in llms.txt", "voice", [], lambda d: edit(d, "llms.txt", "Homebrew casks for", LONG + " Homebrew casks for")),
         ("alpha hex in a variable", "colour", [], lambda d: edit(d, "style.css", "--muted:#595959", "--muted:#59595980")),
         ("short alpha hex in a rule", "colour", [], lambda d: edit(d, "style.css", "box-sizing", "color:#fff8;box-sizing")),
         ("second accent", "accent", [], lambda d: edit(d, "style.css", "--rule:#d9d9d9", "--rule:#0000ff")),
@@ -533,12 +606,23 @@ def self_test():
         ("look-alike font host", "links", [], lambda d: edit(d, "index.html", 'href="https://fonts.gstatic.com"', 'href="https://fonts.gstatic.com.example.net"')),
         ("font host with userinfo", "links", [], lambda d: edit(d, "index.html", 'href="https://fonts.googleapis.com"', 'href="https://fonts.googleapis.com@example.net"')),
         ("script tag", "no-js", [], lambda d: edit(d, "index.html", "</body>", "<script>1</script></body>")),
-        ("image without alt", "a11y", [], lambda d: edit(d, "index.html", 'alt="Weave pattern generated from the name machine-made"', 'alt=" "')),
+        ("image without alt", "a11y", [], lambda d: edit(d, "index.html", alt, 'alt=" "')),
         ("money amount", "forbidden", [], lambda d: edit(d, "llms.txt", "## Houses", "$5\n\n## Houses")),
         ("second page", "files", [], lambda d: (d / "second.html").write_text("<!doctype html>")),
-        ("weave inside the left third", "hero", [], move_weave),
+        ("weave inside the left third", "hero", [], lambda d: move_weave(d, hero)),
+        ("hero file is not valid XML", "parse", [], lambda d: (d / hero).write_text("<svg", encoding="utf-8")),
+        ("header shows another image", "hero", [], lambda d: edit(d, "index.html", f'src="{hero}"', 'src="mark.svg"')),
+        ("hero file missing", "files", [], lambda d: (d / hero).unlink()),
     ]
-    bad = 0
+    total, bad = 0, 0
+
+    def report(ok, title):
+        nonlocal total, bad
+        total += 1
+        if not ok:
+            bad += 1
+            print(f"SELF-TEST FAIL: {title}")
+
     with tempfile.TemporaryDirectory() as tmp:
         for title, rule, deny, mutate in cases + [("clean copy", None, [], lambda d: None)]:
             root = Path(tmp) / "case"
@@ -551,25 +635,29 @@ def self_test():
                 found = run_checks(deny)
             except AssertionError as exc:
                 found, rule = [str(exc)], "stale"
+            except Exception as exc:
+                found, rule = [f"crash {exc!r}"], "no crash"
             caught = any(line.startswith(f"FAIL {rule}:") for line in found) if rule else not found
-            if not caught:
-                bad += 1
-                print(f"SELF-TEST FAIL: {title}: expected {rule or 'a clean pass'}, got {found[:2]}")
-    DOCS = real
-    for name in ("../evil", "Machine", "a..b", "-x", "a/b"):
-        if not build_rejects(name):
-            bad += 1
-            print(f"SELF-TEST FAIL: build.py accepted the site name {name!r}")
+            report(caught, f"{title}: expected {rule or 'a clean pass'}, got {found[:2]}")
+        DOCS = real
+        for bad_name in ("../evil", "Machine", "a..b", "-x", "a/b"):
+            report(build_rejects(bad_name), f"build.py accepted the site name {bad_name!r}")
+        report(renamed_site_passes("loom-x"), "a site under another name does not pass the checks")
+        missing = str(Path(tmp) / "missing")
+        report(cli_fails(["--deny"], "FAIL args:"), "--deny without a file")
+        report(cli_fails(["--deny", missing], "FAIL deny:"), "--deny with a missing file")
+        report(cli_fails(["--no-such-flag"], "FAIL args:"), "an unknown flag")
     if bad:
         sys.exit(1)
-    print(f"SELF-TEST OK ({len(cases) + 6} cases)")
+    print(f"SELF-TEST OK ({total} cases)")
 
 
 def main():
-    if "--self-test" in sys.argv[1:]:
+    args = parse_args(sys.argv[1:])
+    if args.self_test:
         self_test()
         return
-    found = run_checks(load_deny())
+    found = run_checks(load_deny(args.deny))
     if found:
         print("\n".join(found))
         sys.exit(1)

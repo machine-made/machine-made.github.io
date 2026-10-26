@@ -5,10 +5,19 @@
 set -eu
 cd "$(dirname "$0")"
 export PYTHONDONTWRITEBYTECODE=1
-first=$(mktemp)
-second=$(mktemp)
+first=$(mktemp "${TMPDIR:-/tmp}/mm-gate.XXXXXX")
+second=$(mktemp "${TMPDIR:-/tmp}/mm-gate.XXXXXX")
 trap 'rm -f "$first" "$second"' EXIT
-hashes() { find docs -type f | LC_ALL=C sort | xargs sha256sum; }
+hashes() {
+  python3 - <<'PY'
+import hashlib
+from pathlib import Path
+
+for path in sorted(Path("docs").rglob("*")):
+    if path.is_file():
+        print(hashlib.sha256(path.read_bytes()).hexdigest(), path.as_posix())
+PY
+}
 python3 build.py > /dev/null
 hashes > "$first"
 python3 build.py > /dev/null

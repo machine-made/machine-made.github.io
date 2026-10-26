@@ -2,8 +2,9 @@
 # The gate: deterministic build, self-tests, site checks, forbidden words.
 # Prints DETERMINISTIC, SELF-TEST OK, OK and "grep clean"; any failure exits 1.
 # MM_DENY_FILE=FILE (outside this repository) also rejects the names listed in FILE.
-# MM_FONTS=DIR (Geist woff2 files; needs Playwright, fontTools and brotli) also builds brand/ twice,
-# compares the hashes and compares the result with the brand/ in this repository.
+# MM_FONTS=DIR (the site fonts, fonts/ in this repository; needs Playwright, fontTools and brotli)
+# also builds brand/ twice, compares the hashes and compares the result with the brand/ in this
+# repository.
 set -eu
 cd "$(dirname "$0")"
 export PYTHONDONTWRITEBYTECODE=1
@@ -50,7 +51,7 @@ if [ -n "${MM_FONTS:-}" ]; then
   fi
   echo "BRAND DETERMINISTIC"
 else
-  echo "BRAND SKIPPED: set MM_FONTS to a folder of Geist woff2 files to check brand/"
+  echo "BRAND SKIPPED: set MM_FONTS=fonts to check brand/"
 fi
 python3 check_site.py --self-test
 if [ -n "${MM_DENY_FILE:-}" ]; then
@@ -58,7 +59,8 @@ if [ -n "${MM_DENY_FILE:-}" ]; then
 else
   python3 check_site.py
 fi
-if grep -rniE '\$[0-9]|tokens' docs/; then
+# -I skips the font files: binary data is not copy. check_site.py reads the licences.
+if grep -rniIE '\$[0-9]|tokens' docs/; then
   echo "grep found a forbidden word"
   exit 1
 fi

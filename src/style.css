@@ -1,6 +1,22 @@
+@font-face {
+  font-family: "machine-made Weft";
+  src: url(fonts/mm-weft.woff2) format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "machine-made Sans";
+  src: url(fonts/mm-sans.woff2) format("woff2");
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
-  --sans: "Geist", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --sans: "machine-made Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "machine-made Weft", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --s-1: 0.85rem;
   --s0: 1.0625rem;
   --s1: 1.328rem;
@@ -18,6 +34,9 @@
   --column-gap: 24px;
   --max: 1280px;
   --measure: 34rem;
+  /* Weft is wide: every glyph has a 750-unit advance and narrow ink, so mono type is set tighter. */
+  --mono-track: -0.06em;
+  --mono-track-small: -0.03em;
   --section: var(--sp-8);
 }
 
@@ -54,6 +73,8 @@ body {
   font-family: var(--sans);
   font-size: var(--s0);
   line-height: 1.55;
+  /* The word space of machine-made Sans is narrow (170 units). */
+  word-spacing: 0.05em;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -103,6 +124,7 @@ a:focus-visible {
   color: var(--bg);
   font-family: var(--mono);
   font-size: var(--s-1);
+  letter-spacing: var(--mono-track-small);
 }
 
 .skip:focus {
@@ -114,12 +136,20 @@ a:focus-visible {
   margin-inline: auto;
 }
 
+h1,
+h2,
+.skip,
+.projects a,
+footer > .wrap {
+  word-spacing: normal;
+}
+
 h2 {
   font-family: var(--mono);
   font-weight: 500;
   font-size: var(--s2);
   line-height: 1.2;
-  letter-spacing: -0.02em;
+  letter-spacing: var(--mono-track);
   text-wrap: balance;
 }
 
@@ -153,7 +183,9 @@ p {
   font-weight: 500;
   font-size: clamp(1.9rem, 9vw, 3rem);
   line-height: 1;
-  letter-spacing: -0.04em;
+  letter-spacing: -0.08em;
+  /* FRAG 12: ink-trap notches, the body-safe range of Weft. Only the name has it. */
+  font-variation-settings: "FRAG" 12;
 }
 
 .tagline,
@@ -284,6 +316,7 @@ p {
   justify-self: start;
   font-family: var(--mono);
   font-weight: 500;
+  letter-spacing: var(--mono-track-small);
 }
 
 .projects .site {
@@ -292,6 +325,7 @@ p {
   margin-left: var(--sp-2);
   font-family: var(--mono);
   font-weight: 500;
+  letter-spacing: var(--mono-track-small);
 }
 
 .projects .site::after {
@@ -322,4 +356,5 @@ footer > .wrap {
   color: var(--muted);
   font-family: var(--mono);
   font-size: var(--s-1);
+  letter-spacing: var(--mono-track-small);
 }

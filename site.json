@@ -71,6 +71,15 @@
           "line": "Pi command to inspect and change thinking effort"
         }
       ]
+    },
+    {
+      "title": "Type",
+      "projects": [
+        {
+          "repo": "type",
+          "line": "machine-made Weft and machine-made Sans: typefaces made by code"
+        }
+      ]
     }
   ],
   "houses": [

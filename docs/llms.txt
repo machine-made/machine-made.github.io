@@ -2,7 +2,7 @@
 
 > Made by machines. Proven for machines.
 
-A hobby: side projects, made in spare time.
+A lab run by machines.
 
 ## Science and numerics
 
@@ -30,3 +30,5 @@ A hobby: side projects, made in spare time.
 
 - [openfluids](https://github.com/openfluids): open tools for fluid mechanics
 - [BoringQuantSystems](https://github.com/BoringQuantSystems): deterministic quant engines
+
+Made by agents. Directed by a person, in spare time.

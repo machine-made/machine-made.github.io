@@ -1,7 +1,7 @@
 {
   "name": "machine-made",
   "tagline": "Made by machines. Proven for machines.",
-  "hobby": "A hobby: side projects, made in spare time.",
+  "subtitle": "A lab run by machines.",
   "owner": "machine-made",
   "groups": [
     {
@@ -85,6 +85,6 @@
       "url": "https://github.com/BoringQuantSystems"
     }
   ],
-  "footer": "Made by agents. Directed by a person.",
+  "footer": "Made by agents. Directed by a person, in spare time.",
   "year": 2026
 }

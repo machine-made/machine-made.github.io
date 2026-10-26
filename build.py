@@ -311,7 +311,7 @@ def load_site() -> dict[str, Any]:
         ("tagline", str),
         ("owner", str),
         ("footer", str),
-        ("hobby", str),
+        ("subtitle", str),
         ("year", int),
         ("groups", list),
         ("houses", list),
@@ -414,7 +414,7 @@ def page_html(site: dict[str, Any]) -> str:
 <div>
 <h1>{esc(name)}</h1>
 <p class="tagline">{tagline}</p>
-<p class="hobby">{esc(site['hobby'])}</p>
+<p class="subtitle">{esc(site['subtitle'])}</p>
 </div>
 </div>
 <img class="hero" src="heroes/{esc(name)}.svg" width="{FRAME_W}" height="{FRAME_H}" alt="Weave pattern generated from the name {esc(name)}">
@@ -450,8 +450,8 @@ def llms_txt(site: dict[str, Any]) -> str:
     )
     houses = "\n".join(f"- [{h['name']}]({h['url']}): {h['line']}" for h in site["houses"])
     return (
-        f"# {site['name']}\n\n> {site['tagline']}\n\n{site['hobby']}\n\n"
-        f"{groups}\n\n## Houses\n\n{houses}\n"
+        f"# {site['name']}\n\n> {site['tagline']}\n\n{site['subtitle']}\n\n"
+        f"{groups}\n\n## Houses\n\n{houses}\n\n{site['footer']}\n"
     )
 
 

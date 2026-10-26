@@ -40,8 +40,8 @@ PUBLIC_REPOS = tuple(repo for _, repos in GROUPS for repo in repos)
 SITE_LINKS = {"chaos-atlas": "https://machine-made.github.io/chaos-atlas/"}
 HOUSE_URLS = ("https://github.com/openfluids", "https://github.com/BoringQuantSystems")
 TAGLINE = "Made by machines. Proven for machines."
-HOBBY = "A hobby: side projects, made in spare time."
-FOOTER = "Made by agents. Directed by a person."
+SUBTITLE = "A lab run by machines."
+FOOTER = "Made by agents. Directed by a person, in spare time."
 BASE_FILES = {"index.html", "style.css", "mark.svg", "llms.txt"}
 FILE_NAME = re.compile(r"[a-z0-9][a-z0-9._-]*")
 FONT_HOSTS = ("fonts.googleapis.com", "fonts.gstatic.com")
@@ -419,13 +419,13 @@ def group_lists(source: str, pattern: str) -> list[tuple[str, list[str]]]:
 
 def check_content(page: Page, html_text: str) -> str:
     text = " ".join(" ".join(page.text).split())
-    for needed in (TAGLINE, HOBBY, FOOTER):
+    for needed in (TAGLINE, SUBTITLE, FOOTER):
         if needed not in text:
             fail("content", f'the page lacks "{needed}"')
     if not re.search(
-        rf'<p class="tagline">(?:(?!</p>).)*</p>\s*<p class="hobby">{re.escape(HOBBY)}</p>', html_text, re.S
+        rf'<p class="tagline">(?:(?!</p>).)*</p>\s*<p class="subtitle">{re.escape(SUBTITLE)}</p>', html_text, re.S
     ):
-        fail("content", "the hobby line must follow the tagline")
+        fail("content", "the subtitle line must follow the tagline")
     hrefs = [link.get("href") or "" for link in page.links if link.get("tag") != "link"]
     repo_links = [h for h in hrefs if h.startswith(f"https://github.com/{OWNER}/")]
     expected = [f"https://github.com/{OWNER}/{repo}" for repo in PUBLIC_REPOS]
@@ -737,8 +737,10 @@ def check_llms(name: str | None) -> None:
     expected = [f"https://github.com/{OWNER}/{r}" for r in PUBLIC_REPOS] + list(HOUSE_URLS) + list(SITE_LINKS.values())
     if sorted(links) != sorted(expected):
         fail("llms", "llms.txt must list exactly the public repositories, the site link and the two houses")
-    if name and not text.startswith(f"# {name}\n\n> {TAGLINE}\n\n{HOBBY}\n\n## "):
-        fail("llms", "llms.txt must start with the name, the line and the hobby line")
+    if name and not text.startswith(f"# {name}\n\n> {TAGLINE}\n\n{SUBTITLE}\n\n## "):
+        fail("llms", "llms.txt must start with the name, the line and the subtitle line")
+    if not text.endswith(f"\n\n{FOOTER}\n"):
+        fail("llms", "llms.txt must end with the footer line")
     found = group_lists(text, r"## ([^\n]+)\n\n((?:- [^\n]*\n?)+)")
     if [(t, r) for t, r in found if t != "Houses"] != [(title, list(repos)) for title, repos in GROUPS]:
         fail("llms", "llms.txt must follow the three groups, in order")
@@ -921,10 +923,14 @@ def self_test() -> None:
         ("header shows another image", "hero", [], lambda d: edit(d, "index.html", f'src="{hero}"', 'src="mark.svg"')),
         ("hero file missing", "files", [], lambda d: (d / hero).unlink()),
         ("non-ASCII in llms.txt", "voice", [], lambda d: edit(d, "llms.txt", "## Houses", "caf\u00e9\n\n## Houses")),
-        ("hobby line missing", "content", [], lambda d: edit(d, "index.html", f'<p class="hobby">{HOBBY}</p>', "")),
-        ("hobby line changed", "content", [], lambda d: edit(d, "index.html", "A hobby:", "A job:")),
-        ("hobby line before the tagline", "content", [], lambda d: edit_all(d, "index.html", (f'<p class="hobby">{HOBBY}</p>', ""), ('<p class="tagline">', f'<p class="hobby">{HOBBY}</p><p class="tagline">'))),
-        ("hobby line missing in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", f"{HOBBY}\n\n", "")),
+        ("subtitle line missing", "content", [], lambda d: edit(d, "index.html", f'<p class="subtitle">{SUBTITLE}</p>', "")),
+        ("subtitle line changed", "content", [], lambda d: edit(d, "index.html", "A lab", "A job")),
+        ("subtitle line before the tagline", "content", [], lambda d: edit_all(d, "index.html", (f'<p class="subtitle">{SUBTITLE}</p>', ""), ('<p class="tagline">', f'<p class="subtitle">{SUBTITLE}</p><p class="tagline">'))),
+        ("subtitle line missing in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", f"{SUBTITLE}\n\n", "")),
+        ("old footer on the page", "content", [], lambda d: edit(d, "index.html", ", in spare time.", ".")),
+        ("old footer in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", ", in spare time.", ".")),
+        ("footer missing in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", f"\n\n{FOOTER}", "")),
+        ("old subtitle line", "content", [], lambda d: edit(d, "index.html", "A lab run by machines.", "A hobby: side projects, made in spare time.")),
         ("how we work comes back", "projects", [], lambda d: edit(d, "index.html", '<main id="main">', '<main id="main"><h2 id="work">How we work</h2>')),
         ("a group heading is renamed", "projects", [], lambda d: edit(d, "index.html", ">Tools for agents<", ">Tools<")),
         ("two projects swap groups", "projects", [], lambda d: edit_all(d, "index.html", (f'{OWNER}/bun-do"', f'{OWNER}/tmp"'), (f'{OWNER}/pdf-next"', f'{OWNER}/bun-do"'), (f'{OWNER}/tmp"', f'{OWNER}/pdf-next"'))),
@@ -1030,7 +1036,7 @@ def self_test() -> None:
             {"groups": [{"title": "A", "projects": [{"repo": "x", "line": "y"}]}, {"title": "a!", "projects": [{"repo": "z", "line": "y"}]}]},
             {"groups": [{"title": "A", "projects": [{"repo": "x", "line": "y"}, {"repo": "x", "line": "y"}]}]},
             {"groups": [{"title": "A", "projects": [{"repo": "x", "line": "y", "site": "http://x"}]}]},
-            {"hobby": 5},
+            {"subtitle": 5},
         ]
         for changes in bad_sites:
             report(build_rejects(changes), f"build.py accepted {str(changes)[:60]}")

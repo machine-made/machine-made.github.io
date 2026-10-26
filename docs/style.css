@@ -168,7 +168,7 @@ p {
   display: block;
 }
 
-.hobby {
+.subtitle {
   margin-top: var(--sp-1);
   font-size: var(--s1);
   line-height: 1.3;
@@ -209,7 +209,7 @@ p {
     font-size: clamp(1rem, 1.5vw, var(--s1));
   }
 
-  .hobby {
+  .subtitle {
     font-size: clamp(1rem, 1.5vw, var(--s1));
   }
 }

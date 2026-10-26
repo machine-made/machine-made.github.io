@@ -21,7 +21,7 @@ deterministic: the same source tree gives the same bytes.
 
 | Path | Holds |
 | --- | --- |
-| `site.json` | The content: name, line, hobby line, the three project groups, houses |
+| `site.json` | The content: name, line, subtitle line, the three project groups, houses |
 | `build.py` | The generator: page, style, mark, `llms.txt`, header weave |
 | `src/style.css` | The style. `build.py` adds the colours and writes `docs/style.css` |
 | `check_site.py` | The checks for the built site |
@@ -32,7 +32,7 @@ deterministic: the same source tree gives the same bytes.
 
 ## Rules
 
-- The page shows the name, the line, the hobby line, the public projects in three groups and the two houses.
+- The page shows the name, the line, the subtitle line, the public projects in three groups and the two houses.
 - Only public repositories are named or linked. A new public project needs an entry in
   `site.json` and in `PUBLIC_REPOS` in `check_site.py`.
 - `check_site.py --deny FILE`, or `MM_DENY_FILE=FILE sh gate.sh`, also rejects any name listed

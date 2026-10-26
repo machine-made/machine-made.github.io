@@ -2,6 +2,8 @@
 """Check the built site in docs/. Standard library only.
 
 Prints OK and exits 0 when every rule holds. Otherwise prints one line per failure and exits 1.
+`python3 check_site.py --self-test` breaks a copy of docs/ in many ways and checks that each
+break is caught.
 
 Private repository names are not kept in this repository. Rules that need them read a list
 from a file outside the repository: `python3 check_site.py --deny FILE` or MM_DENY_FILE=FILE.
@@ -9,13 +11,16 @@ FILE has one name per line. Without it, the allowlist rules still reject every l
 repository-shaped name that is not public.
 """
 
-import json
 import os
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 import xml.etree.ElementTree as ET
 from html.parser import HTMLParser
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parent
 DOCS = ROOT / "docs"
@@ -35,7 +40,7 @@ HOUSE_URLS = ("https://github.com/openfluids", "https://github.com/BoringQuantSy
 TAGLINE = "Made by machines. Proven for machines."
 FOOTER = "Made by agents. Directed by a person."
 FILES = {"index.html", "style.css", "mark.svg", "llms.txt", "heroes/machine-made.svg"}
-FONT_HOSTS = ("https://fonts.googleapis.com", "https://fonts.gstatic.com")
+FONT_HOSTS = ("fonts.googleapis.com", "fonts.gstatic.com")
 FRAME = (1408, 469)
 FORBIDDEN = re.compile(
     r"[$\u20ac\u00a3]\s?[0-9]|[0-9]\s?(?:usd|chf|eur)\b|tokens|punchcard|night-shift|nexus", re.I
@@ -49,7 +54,9 @@ failures = []
 
 
 def fail(rule, message):
-    failures.append(f"FAIL {rule}: {message}")
+    line = f"FAIL {rule}: {message}"
+    if line not in failures:
+        failures.append(line)
 
 
 class Page(HTMLParser):
@@ -57,6 +64,7 @@ class Page(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.stack, self.ids, self.links, self.imgs, self.tags = [], [], [], [], []
         self.text, self.values, self.headings = [], [], []
+        self.hidden, self.paragraphs, self.paragraph = [], [], None
         self.first_link = None
         self.heading = None
         self.problems = []
@@ -84,6 +92,8 @@ class Page(HTMLParser):
             self.imgs.append(a)
         if tag in ("h1", "h2", "h3"):
             self.heading = [tag, ""]
+        if tag == "p":
+            self.paragraph = ""
         if tag not in VOID:
             self.stack.append(tag)
 
@@ -102,13 +112,22 @@ class Page(HTMLParser):
         if tag in ("h1", "h2", "h3") and self.heading:
             self.headings.append((self.heading[0], self.heading[1].strip()))
             self.heading = None
+        if tag == "p" and self.paragraph is not None:
+            self.paragraphs.append(" ".join(self.paragraph.split()))
+            self.paragraph = None
+
+    def handle_comment(self, data):
+        self.hidden.append(data)
 
     def handle_data(self, data):
         if self.stack and self.stack[-1] in ("style", "script"):
+            self.hidden.append(data)
             return
         self.text.append(data)
         if self.heading:
             self.heading[1] += data
+        if self.paragraph is not None:
+            self.paragraph += data
 
     def error(self, message):
         self.problems.append(message)
@@ -130,7 +149,7 @@ def contrast(a, b):
     return (la + 0.05) / (lb + 0.05)
 
 
-HEX = re.compile(r"#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b")
+HEX = re.compile(r"#[0-9a-fA-F]+\b")
 FUNC = re.compile(r"\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\(")
 
 
@@ -139,9 +158,15 @@ def colours_of(text, where):
     found = set()
     for hit in HEX.findall(text):
         h = hit.lstrip("#")
+        if len(h) in (4, 8):
+            fail("colour", f"{where} has {hit}, a colour with alpha; use #rgb or #rrggbb")
+            continue
+        if len(h) not in (3, 6):
+            fail("colour", f"{where} has {hit}, which is not a colour")
+            continue
         if len(h) == 3:
             h = "".join(c * 2 for c in h)
-        found.add("#" + h[:6].lower())
+        found.add("#" + h.lower())
     if FUNC.search(text):
         fail("colour", f"{where} uses a colour function; write colours as hex")
     if "gradient" in text:
@@ -160,7 +185,7 @@ def read(rel):
     if not path.is_file():
         fail("files", f"{rel} is missing; run python3 build.py")
         return ""
-    return path.read_text(encoding="utf-8")
+    return path.read_text(encoding="utf-8", errors="replace")
 
 
 def check_files():
@@ -171,9 +196,14 @@ def check_files():
         fail("files", f"docs/{missing} is missing; run python3 build.py")
 
 
-def local_target(href, base=DOCS):
-    path = href.split("#", 1)[0].split("?", 1)[0]
-    return (base / path) if path else None
+def local_target(href):
+    """The file a local link names, or None when it names nothing or leaves docs/."""
+    path = unquote(href.split("#", 1)[0].split("?", 1)[0])
+    if not path:
+        return None
+    root = DOCS.resolve()
+    target = (DOCS / path).resolve()
+    return target if root in target.parents else None
 
 
 def check_html(page, html_text):
@@ -213,27 +243,39 @@ def check_html(page, html_text):
             fail("responsive", f"image {img.get('src')} has no width and height")
         target = local_target(img.get("src", ""))
         if target is None or not target.is_file():
-            fail("links", f"image {img.get('src')} does not resolve")
+            fail("links", f"image {img.get('src')} does not resolve inside docs/")
     for link in page.links:
         href = link.get("href", "")
+        parts = urlsplit(href)
         if href.startswith("#"):
             if href[1:] not in page.ids:
                 fail("links", f"{href} points to no id")
-        elif href.startswith("https://"):
-            if link.get("tag") == "link":
-                if not href.startswith(FONT_HOSTS):
+        elif parts.scheme or parts.netloc:
+            if parts.scheme.lower() != "https":
+                fail("links", f"{href} is not an https link")
+            elif link.get("tag") == "link":
+                if parts.hostname not in FONT_HOSTS or parts.username or parts.port:
                     fail("links", f"{href} is an external resource that is not a font")
             elif not (
                 href in HOUSE_URLS
                 or any(href == f"https://github.com/{OWNER}/{repo}" for repo in PUBLIC_REPOS)
             ):
                 fail("links", f"{href} is not in the public list")
-        elif re.match(r"[a-z][a-z0-9+.-]*:", href):
-            fail("links", f"{href} uses a scheme that is not https")
         else:
             target = local_target(href)
             if target is None or not target.is_file():
-                fail("links", f"{href} does not resolve")
+                fail("links", f"{href} does not resolve inside docs/")
+
+
+def sentences_of(paragraph):
+    return re.split(r"(?<=[.!?])\s+", paragraph.strip())
+
+
+def check_prose(paragraphs, where):
+    for paragraph in paragraphs:
+        for sentence in sentences_of(paragraph):
+            if len(sentence.split()) > MAX_WORDS:
+                fail("voice", f"{where}: a sentence has more than {MAX_WORDS} words: {sentence[:40]}")
 
 
 def check_content(page, html_text):
@@ -252,42 +294,50 @@ def check_content(page, html_text):
     if any(kind == "h3" for kind, _ in page.headings):
         fail("projects", "the page has headings below h2; the project list is a plain list")
     work = re.search(r"How we work.*?</h2>\s*<div class=\"lead\">(.*?)</div>", html_text, re.S)
-    sentences = re.findall(r"<p>(.*?)</p>", work.group(1)) if work else []
-    if not 2 <= len(sentences) <= 3:
+    lead = re.findall(r"<p>(.*?)</p>", work.group(1)) if work else []
+    if not 2 <= len(lead) <= 3:
         fail("content", "How we work needs two or three sentences")
-    for sentence in sentences:
-        if len(sentence.split()) > MAX_WORDS:
-            fail("voice", f"sentence is longer than {MAX_WORDS} words: {sentence[:40]}")
-    visible = text + " " + " ".join(page.values)
+    check_prose(page.paragraphs, "index.html")
+    visible = " ".join([text] + page.values + page.hidden)
     if not visible.isascii():
         fail("voice", "the page has characters that are not plain ASCII")
     return visible
 
 
+def emitted(visible):
+    """Every emitted file as (name, text). The page counts as what a reader or a crawler gets."""
+    yield "index.html", visible
+    for path in sorted(DOCS.rglob("*")):
+        name = path.relative_to(DOCS).as_posix()
+        if path.is_file() and name != "index.html":
+            yield name, path.read_text(encoding="utf-8", errors="replace")
+
+
 def check_leaks(visible, deny):
-    for source in [visible] + [read(f) for f in ("llms.txt", "heroes/machine-made.svg", "mark.svg")]:
+    house_hosts = {u.split("//", 1)[1] for u in HOUSE_URLS}
+    for name, source in emitted(visible):
         for match in GITHUB.findall(source):
-            ok = match in {u.split("//", 1)[1] for u in HOUSE_URLS} or any(
+            ok = match in house_hosts or any(
                 match == f"github.com/{OWNER}/{repo}" for repo in PUBLIC_REPOS
             )
             if not ok:
-                fail("private", f"{match} is not in the public list")
-        for name in RS_NAME.findall(source):
-            if name.lower() not in PUBLIC_REPOS:
-                fail("private", f"{name} looks like a repository that is not in the public list")
-        for name in deny:
-            if re.search(rf"(?<![\w]){re.escape(name)}(?![\w])", source, re.I):
-                fail("private", f"a private repository name appears in the output ({len(name)} letters)")
+                fail("private", f"{match} is not in the public list ({name})")
+        for repo in RS_NAME.findall(source):
+            if repo.lower() not in PUBLIC_REPOS:
+                fail("private", f"{repo} looks like a repository that is not in the public list ({name})")
+        for word in deny:
+            if re.search(rf"(?<![\w]){re.escape(word)}(?![\w])", source, re.I):
+                fail("private", f"a private name appears in docs/{name} ({len(word)} letters)")
     for path in DOCS.rglob("*"):
-        for name in deny:
-            if path.is_file() and re.search(re.escape(name), path.name, re.I):
+        for word in deny:
+            if path.is_file() and re.search(re.escape(word), path.name, re.I):
                 fail("private", f"a private name is part of the file name {path.name}")
 
 
 def check_forbidden():
     for path in sorted(DOCS.rglob("*")):
         if path.is_file():
-            hit = FORBIDDEN.search(path.read_text(encoding="utf-8"))
+            hit = FORBIDDEN.search(path.read_text(encoding="utf-8", errors="replace"))
             if hit:
                 fail("forbidden", f"docs/{path.relative_to(DOCS).as_posix()} contains {hit.group(0)!r}")
 
@@ -303,7 +353,13 @@ def check_css():
         return
 
     def vars_of(block):
-        return dict(re.findall(r"--([a-z-]+):\s*(#[0-9a-fA-F]{3,6})", block))
+        found = {}
+        for key, value in re.findall(r"--([a-z-]+):\s*(#[0-9a-fA-F]+)\b", block):
+            if len(value) in (4, 7):
+                found[key] = value
+            else:
+                fail("colour", f"--{key} is {value}; use #rgb or #rrggbb with no alpha")
+        return found
 
     light, night = vars_of(root.group(1)), {**vars_of(root.group(1)), **vars_of(dark.group(1))}
     for mode, v in (("light", light), ("dark", night)):
@@ -386,6 +442,8 @@ def check_llms():
         fail("llms", "llms.txt must list exactly the eight public repositories and the two houses")
     if not text.startswith("# machine-made\n\n> " + TAGLINE):
         fail("llms", "llms.txt must start with the name and the line")
+    lines = (re.sub(r"^[#>-]+\s*", "", line) for line in text.splitlines())
+    check_prose([re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", line) for line in lines], "llms.txt")
 
 
 def load_deny():
@@ -400,8 +458,8 @@ def load_deny():
     return [n for n in names if n and not n.startswith("#")]
 
 
-def main():
-    deny = load_deny()
+def run_checks(deny):
+    del failures[:]
     check_files()
     html_text = read("index.html")
     if html_text:
@@ -415,8 +473,105 @@ def main():
     check_css()
     check_svgs()
     check_llms()
-    if failures:
-        print("\n".join(failures))
+    return list(failures)
+
+
+LONG = " ".join(["word"] * 30) + "."
+
+
+def edit(docs, name, old, new):
+    path = docs / name
+    text = path.read_text(encoding="utf-8")
+    if old not in text:
+        raise AssertionError(f"self-test is stale: {old!r} is not in docs/{name}")
+    path.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+
+def move_weave(docs):
+    path = docs / "heroes" / "machine-made.svg"
+    text = path.read_text(encoding="utf-8")
+    moved = re.sub(r'(fill="url\(#p\d\)" d="M)\d+', r"\g<1>100", text, count=1)
+    if moved == text:
+        raise AssertionError("self-test is stale: no weave mask found in the hero")
+    path.write_text(moved, encoding="utf-8")
+
+
+def build_rejects(bad_name):
+    """Run a copy of build.py on a bad site name. True when it exits 2 and writes nothing outside docs/."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "site"
+        (root / "src").mkdir(parents=True)
+        for rel in ("build.py", "src/style.css", "site.json"):
+            shutil.copy(ROOT / rel, root / rel)
+        text = (root / "site.json").read_text(encoding="utf-8")
+        (root / "site.json").write_text(text.replace('"name": "machine-made"', f'"name": "{bad_name}"', 1))
+        env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+        done = subprocess.run([sys.executable, str(root / "build.py")], capture_output=True, env=env)
+        outside = [p.name for p in Path(tmp).rglob("*.svg") if root / "docs" not in p.parents]
+        return done.returncode == 2 and not outside
+
+
+def self_test():
+    global DOCS
+    real = DOCS
+    cases = [
+        ("private name in style.css", "private", ["zzprivate"], lambda d: edit(d, "style.css", "box-sizing", "/* zzprivate */ box-sizing")),
+        ("private name in the hero svg", "private", ["zzprivate"], lambda d: edit(d, "heroes/machine-made.svg", "<title>", "<title>zzprivate ")),
+        ("private name in an html comment", "private", ["zzprivate"], lambda d: edit(d, "index.html", "<body>", "<body><!-- zzprivate -->")),
+        ("private link", "links", [], lambda d: edit(d, "index.html", "machine-made/bun-do", "machine-made/zzprivate")),
+        ("private rs name in llms.txt", "private", [], lambda d: edit(d, "llms.txt", "## Houses", "zz-rs\n\n## Houses")),
+        ("long project line", "voice", [], lambda d: edit(d, "index.html", "Homebrew casks for machine-made software", LONG)),
+        ("long houses line", "voice", [], lambda d: edit(d, "index.html", "(deterministic quant engines)", "(" + LONG[:-1] + ")")),
+        ("long line in llms.txt", "voice", [], lambda d: edit(d, "llms.txt", "Homebrew casks for machine-made software", LONG)),
+        ("alpha hex in a variable", "colour", [], lambda d: edit(d, "style.css", "--muted:#595959", "--muted:#59595980")),
+        ("short alpha hex in a rule", "colour", [], lambda d: edit(d, "style.css", "box-sizing", "color:#fff8;box-sizing")),
+        ("second accent", "accent", [], lambda d: edit(d, "style.css", "--rule:#d9d9d9", "--rule:#0000ff")),
+        ("link leaves docs/", "links", [], lambda d: edit(d, "index.html", 'href="style.css"', 'href="../README.md"')),
+        ("image leaves docs/", "links", [], lambda d: edit(d, "index.html", 'src="mark.svg"', 'src="../README.md"')),
+        ("absolute local link", "links", [], lambda d: edit(d, "index.html", 'href="style.css"', 'href="/etc/hostname"')),
+        ("protocol-relative link", "links", [], lambda d: edit(d, "index.html", 'href="style.css"', 'href="//example.com/x.css"')),
+        ("look-alike font host", "links", [], lambda d: edit(d, "index.html", 'href="https://fonts.gstatic.com"', 'href="https://fonts.gstatic.com.example.net"')),
+        ("font host with userinfo", "links", [], lambda d: edit(d, "index.html", 'href="https://fonts.googleapis.com"', 'href="https://fonts.googleapis.com@example.net"')),
+        ("script tag", "no-js", [], lambda d: edit(d, "index.html", "</body>", "<script>1</script></body>")),
+        ("image without alt", "a11y", [], lambda d: edit(d, "index.html", 'alt="Weave pattern generated from the name machine-made"', 'alt=" "')),
+        ("money amount", "forbidden", [], lambda d: edit(d, "llms.txt", "## Houses", "$5\n\n## Houses")),
+        ("second page", "files", [], lambda d: (d / "second.html").write_text("<!doctype html>")),
+        ("weave inside the left third", "hero", [], move_weave),
+    ]
+    bad = 0
+    with tempfile.TemporaryDirectory() as tmp:
+        for title, rule, deny, mutate in cases + [("clean copy", None, [], lambda d: None)]:
+            root = Path(tmp) / "case"
+            shutil.rmtree(root, ignore_errors=True)
+            shutil.copytree(real, root / "docs")
+            (root / "README.md").write_text("outside docs/\n")
+            DOCS = root / "docs"
+            try:
+                mutate(DOCS)
+                found = run_checks(deny)
+            except AssertionError as exc:
+                found, rule = [str(exc)], "stale"
+            caught = any(line.startswith(f"FAIL {rule}:") for line in found) if rule else not found
+            if not caught:
+                bad += 1
+                print(f"SELF-TEST FAIL: {title}: expected {rule or 'a clean pass'}, got {found[:2]}")
+    DOCS = real
+    for name in ("../evil", "Machine", "a..b", "-x", "a/b"):
+        if not build_rejects(name):
+            bad += 1
+            print(f"SELF-TEST FAIL: build.py accepted the site name {name!r}")
+    if bad:
+        sys.exit(1)
+    print(f"SELF-TEST OK ({len(cases) + 6} cases)")
+
+
+def main():
+    if "--self-test" in sys.argv[1:]:
+        self_test()
+        return
+    found = run_checks(load_deny())
+    if found:
+        print("\n".join(found))
         sys.exit(1)
     print("OK")
 

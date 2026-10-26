@@ -44,6 +44,9 @@ PX, PY = REGION_COLS // PIXEL, ROWS // PIXEL
 RED_SPAN = 2
 SATINS = ((5, 2), (5, 3), (8, 3), (8, 5))
 MASK64 = (1 << 64) - 1
+FILE_NAME = re.compile(r"[a-z0-9][a-z0-9._-]*")
+REPO_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+COLOUR = re.compile(r"#[0-9a-f]{6}")
 
 
 class Rng:
@@ -275,6 +278,13 @@ def root_css():
     )
 
 
+def check_palette():
+    colours = [PALETTE["red"]] + [v for mode in ("light", "dark") for v in PALETTE[mode].values()]
+    for colour in colours:
+        if not COLOUR.fullmatch(colour):
+            fail(f"palette colour {colour} is not #rrggbb", "Write each palette colour as lower-case #rrggbb with no alpha.")
+
+
 def fail(message, fix):
     print(json.dumps({"error": message, "fix": fix}), file=sys.stderr)
     sys.exit(2)
@@ -303,14 +313,19 @@ def load_site():
         ("houses", list),
     ):
         need(site, key, kind, "site")
+    if not FILE_NAME.fullmatch(site["name"]) or ".." in site["name"]:
+        fail(
+            "site.name cannot be used as a file name",
+            "Use lower-case letters, digits, dot, dash or underscore; start with a letter or digit; no '..'.",
+        )
     for i, item in enumerate(site["principles"]):
         if not isinstance(item, str):
             fail(f"principles[{i}] is not a string", "Write each principle as one short sentence.")
     for i, item in enumerate(site["projects"]):
         for key in ("repo", "line"):
             need(item, key, str, f"projects[{i}]")
-        if not re.fullmatch(r"[A-Za-z0-9._-]+", item["repo"]):
-            fail(f"projects[{i}].repo has characters that are not allowed", "Use letters, digits, dot, dash or underscore.")
+        if not REPO_NAME.fullmatch(item["repo"]) or ".." in item["repo"]:
+            fail(f"projects[{i}].repo is not a repository name", "Use letters, digits, dot, dash or underscore; start with a letter or digit; no '..'.")
     for i, item in enumerate(site["houses"]):
         for key in ("name", "line", "url"):
             need(item, key, str, f"houses[{i}]")
@@ -424,6 +439,7 @@ def write(path, text):
 
 
 def main():
+    check_palette()
     site = load_site()
     style = (ROOT / "src" / "style.css").read_text(encoding="utf-8")
     name = site["name"]

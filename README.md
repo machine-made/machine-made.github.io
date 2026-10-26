@@ -9,7 +9,8 @@ The machine-made website: one page and one `llms.txt`, built from `site.json`.
 ```
 python3 build.py        # writes docs/
 python3 check_site.py   # prints OK, or one line per failure
-sh gate.sh              # build twice and compare, check, search for forbidden words
+python3 check_site.py --self-test   # breaks a copy of docs/ and checks that each break is caught
+sh gate.sh              # build twice and compare, self-tests, check, forbidden words
 python3 shots.py        # screenshots in shots/, light and dark; needs Playwright
 ```
 

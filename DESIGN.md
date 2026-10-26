@@ -59,4 +59,5 @@ Result: about 4 KB per hero. The same input gives identical bytes.
 - Contrast: black on white 21:1, grey 595959 on white 7:1, white on black 21:1, grey A6A6A6 on
   black 8.6:1. The gate computes these.
 - No script. No tracking. External requests: Google Fonts only.
-- Responsive to 360 px with no horizontal scroll. `shots.py` measures it.
+- No horizontal scroll from 320 px to 1920 px. `shots.py` measures it at 320, 360, 375, 720, 1000,
+  1440 and 1920 px, in light and dark.

@@ -2,7 +2,9 @@
 """Screenshots of docs/index.html. Needs Playwright; build.py and check_site.py do not.
 
 Usage: python3 shots.py [--out DIR] [--fonts DIR]
---out    where the PNG files go; default ./shots/ in this repository (git ignores it)
+--out    where the PNG files go (375 and 1440 px, light and dark); default ./shots/ in this
+         repository (git ignores it). The scroll check runs at 320, 360, 375, 720, 1000, 1440
+         and 1920 px, in both schemes.
 --fonts  a folder of Geist woff2 files (names like geist-latin-400-normal.woff2). It stands in
          for Google Fonts when the network blocks them. The page itself never reads it.
 """
@@ -15,7 +17,9 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parent
-VIEWPORTS = {"1440": (1440, 900), "375": (375, 812)}
+FIT_WIDTHS = (320, 360, 375, 720, 1000, 1440, 1920)
+SHOT_WIDTHS = (375, 1440)
+HEIGHT = 900
 FACES = (
     ("Geist", "geist", 400),
     ("Geist", "geist", 500),
@@ -58,10 +62,10 @@ def main():
     report = []
     with sync_playwright() as pw:
         browser = pw.chromium.launch()
-        for label, (width, height) in VIEWPORTS.items():
+        for width in FIT_WIDTHS:
             for scheme in ("light", "dark"):
                 ctx = browser.new_context(
-                    viewport={"width": width, "height": height}, color_scheme=scheme
+                    viewport={"width": width, "height": HEIGHT}, color_scheme=scheme
                 )
                 page = ctx.new_page()
                 if fonts:
@@ -75,9 +79,13 @@ def main():
                 metrics = page.evaluate(
                     "({scrollWidth: document.documentElement.scrollWidth, innerWidth: window.innerWidth})"
                 )
-                path = out / f"home-{label}-{scheme}.png"
-                page.screenshot(path=str(path), full_page=True)
-                report.append({"shot": str(path), **metrics, "fits": metrics["scrollWidth"] <= metrics["innerWidth"]})
+                entry = {"width": width, "scheme": scheme, **metrics}
+                entry["fits"] = metrics["scrollWidth"] <= metrics["innerWidth"]
+                if width in SHOT_WIDTHS:
+                    path = out / f"home-{width}-{scheme}.png"
+                    page.screenshot(path=str(path), full_page=True)
+                    entry["shot"] = str(path)
+                report.append(entry)
                 ctx.close()
         browser.close()
     print(json.dumps(report, indent=1))

@@ -252,6 +252,10 @@ p {
     margin: 0;
     font-size: clamp(0.6875rem, 0.9vw, 0.8125rem);
   }
+
+  .subtitle {
+    font-size: clamp(1rem, 1.5vw, var(--s1));
+  }
 }
 
 .section {

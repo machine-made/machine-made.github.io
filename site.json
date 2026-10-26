@@ -1,0 +1,58 @@
+{
+  "name": "machine-made",
+  "tagline": "Made by machines. Proven for machines.",
+  "owner": "machine-made",
+  "principles": [
+    "A port ships a machine-checked report that it matches its original.",
+    "A tool takes JSON in, gives JSON out, uses stable exit codes and says what to do next when it fails.",
+    "A benchmark has a script and a claim has a test."
+  ],
+  "projects": [
+    {
+      "repo": "minuit2-rs",
+      "line": "Pure Rust port of CERN ROOT Minuit2, checked against ROOT"
+    },
+    {
+      "repo": "libsvm-rs",
+      "line": "Pure Rust LIBSVM, checked against the C++ original"
+    },
+    {
+      "repo": "nebula-quanta",
+      "line": "Deterministic Barnes-Hut N-body simulation in Rust"
+    },
+    {
+      "repo": "pdf-next",
+      "line": "PDF, image and Markdown viewer that reloads the moment the file changes"
+    },
+    {
+      "repo": "vscode-pdf-next",
+      "line": "PDF viewer for VS Code: PDF.js, live reload, search, outline"
+    },
+    {
+      "repo": "vscode-diff-next",
+      "line": "Compare branches or two workspaces in VS Code"
+    },
+    {
+      "repo": "bun-do",
+      "line": "Local-first todo app for people and AI agents: REST API and MCP server"
+    },
+    {
+      "repo": "homebrew-tap",
+      "line": "Homebrew casks for machine-made software"
+    }
+  ],
+  "houses": [
+    {
+      "name": "openfluids",
+      "line": "open tools for fluid mechanics",
+      "url": "https://github.com/openfluids"
+    },
+    {
+      "name": "BoringQuantSystems",
+      "line": "deterministic quant engines",
+      "url": "https://github.com/BoringQuantSystems"
+    }
+  ],
+  "footer": "Made by agents. Directed by a person.",
+  "year": 2026
+}

@@ -1,0 +1,21 @@
+# machine-made
+
+> Made by machines. Proven for machines.
+
+A port ships a machine-checked report that it matches its original. A tool takes JSON in, gives JSON out, uses stable exit codes and says what to do next when it fails. A benchmark has a script and a claim has a test.
+
+## Projects
+
+- [minuit2-rs](https://github.com/machine-made/minuit2-rs): Pure Rust port of CERN ROOT Minuit2, checked against ROOT
+- [libsvm-rs](https://github.com/machine-made/libsvm-rs): Pure Rust LIBSVM, checked against the C++ original
+- [nebula-quanta](https://github.com/machine-made/nebula-quanta): Deterministic Barnes-Hut N-body simulation in Rust
+- [pdf-next](https://github.com/machine-made/pdf-next): PDF, image and Markdown viewer that reloads the moment the file changes
+- [vscode-pdf-next](https://github.com/machine-made/vscode-pdf-next): PDF viewer for VS Code: PDF.js, live reload, search, outline
+- [vscode-diff-next](https://github.com/machine-made/vscode-diff-next): Compare branches or two workspaces in VS Code
+- [bun-do](https://github.com/machine-made/bun-do): Local-first todo app for people and AI agents: REST API and MCP server
+- [homebrew-tap](https://github.com/machine-made/homebrew-tap): Homebrew casks for machine-made software
+
+## Houses
+
+- [openfluids](https://github.com/openfluids): open tools for fluid mechanics
+- [BoringQuantSystems](https://github.com/BoringQuantSystems): deterministic quant engines

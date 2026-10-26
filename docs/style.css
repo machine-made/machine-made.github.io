@@ -19,6 +19,7 @@
   --gutter: 16px;
   --column-gap: 24px;
   --max: 1280px;
+  --measure: 34rem;
   --section: var(--sp-8);
 }
 
@@ -225,6 +226,11 @@ p {
   .split h2 {
     margin-bottom: 0;
   }
+}
+
+.split > p,
+.projects p {
+  max-width: var(--measure);
 }
 
 .lead {

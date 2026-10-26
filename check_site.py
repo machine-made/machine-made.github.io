@@ -52,6 +52,20 @@ VOID = {"meta", "link", "img", "br", "hr", "input", "source", "area", "base", "c
 GITHUB = re.compile(r"github\.com/[\w.-]+(?:/[\w.-]+)*", re.I)
 RS_NAME = re.compile(r"(?<![\w-])[a-z0-9][a-z0-9._-]*-rs(?![\w-])", re.I)
 MAX_WORDS = 25
+ALLOWED_ATTRS = {
+    "lang", "charset", "name", "content", "rel", "href", "type", "crossorigin", "class", "id",
+    "src", "width", "height", "alt", "loading", "aria-labelledby",
+}
+PAINT_PROPS = ("fill", "stroke", "stop-color", "flood-color", "lighting-color", "color")
+PAINT_DECL = re.compile(r"(?<![\w-])(fill|stroke|stop-color|flood-color|lighting-color|color)\s*:\s*([^;}]+)")
+PAINT_KEYWORDS = {"none", "currentcolor", "inherit", "transparent", "initial", "unset", "context-fill", "context-stroke"}
+FRAGMENT_URL = re.compile(r"url\(\s*#[\w.-]+\s*\)(\s+\S+)?")
+URL_REF = re.compile(r"url\(\s*(['\"]?)(.*?)\1\s*\)", re.I | re.S)
+IMPORT_REF = re.compile(r"@import\s+(['\"])(.*?)\1", re.I | re.S)
+SVG_FORBIDDEN = {
+    "script", "foreignObject", "image", "iframe", "object", "embed", "audio", "video",
+    "linearGradient", "radialGradient", "stop",
+}
 
 failures = []
 
@@ -81,6 +95,7 @@ class Page(HTMLParser):
         self.stack, self.ids, self.links, self.imgs, self.tags = [], [], [], [], []
         self.text, self.values, self.headings = [], [], []
         self.hidden, self.paragraphs, self.paragraph = [], [], None
+        self.styles, self.unknown_attrs = [], []
         self.first_link = None
         self.heading = None
         self.problems = []
@@ -94,7 +109,13 @@ class Page(HTMLParser):
         if "id" in a:
             self.ids.append(a["id"])
         for key, value in attrs:
-            if value is not None and key not in ("class", "id", "charset", "name", "rel", "lang"):
+            if key not in ALLOWED_ATTRS and not key.startswith("aria-"):
+                self.unknown_attrs.append(f"<{tag}> has the attribute {key}")
+            if value is None:
+                continue
+            if key in ("class", "id", "charset", "name", "rel", "lang"):
+                self.hidden.append(value)
+            else:
                 self.values.append(value)
             if key.startswith("on"):
                 self.problems.append(f"<{tag}> has an event handler ({key})")
@@ -138,6 +159,8 @@ class Page(HTMLParser):
     def handle_data(self, data):
         if self.stack and self.stack[-1] in ("style", "script"):
             self.hidden.append(data)
+            if self.stack[-1] == "style":
+                self.styles.append(data)
             return
         self.text.append(data)
         if self.heading:
@@ -240,6 +263,10 @@ def check_html(page, html_text, name, hero_rel):
         fail("dark", "no color-scheme meta")
     if re.search(r"<title>[^<]+</title>", html_text) is None:
         fail("a11y", "no title")
+    for problem in page.unknown_attrs:
+        fail("attrs", f"{problem}; the page uses no other attributes")
+    for css in page.styles:
+        check_refs(css, "index.html", "css")
     for forbidden in ("script", "iframe", "object", "embed", "form", "input", "button"):
         if forbidden in page.tags:
             fail("no-js", f"<{forbidden}> is not allowed on a page that needs no script")
@@ -288,6 +315,26 @@ def check_html(page, html_text, name, hero_rel):
                 fail("links", f"{href} does not resolve inside docs/")
 
 
+def check_refs(text, where, kind):
+    """url() and @import targets: css may load the two font hosts and local files; svg only #fragments."""
+    targets = [m.group(2).strip() for m in URL_REF.finditer(text)]
+    targets += [m.group(2).strip() for m in IMPORT_REF.finditer(text)]
+    for target in targets:
+        if target.startswith("#"):
+            continue
+        parts = urlsplit(target)
+        if kind == "svg":
+            fail("links", f"{where} refers to {target[:50]!r}; an svg may refer only to its own ids")
+        elif parts.scheme or parts.netloc:
+            font = parts.scheme.lower() == "https" and parts.hostname in FONT_HOSTS
+            if not font or parts.username or parts.port:
+                fail("links", f"{where} loads {target[:50]!r}; only the two font hosts and local files are allowed")
+        else:
+            local = local_target(target)
+            if local is None or not local.is_file():
+                fail("links", f"{where} refers to {target[:50]!r}, which is not a file inside docs/")
+
+
 def sentences_of(paragraph):
     return re.split(r"(?<=[.!?])\s+", paragraph.strip())
 
@@ -316,13 +363,10 @@ def check_content(page, html_text):
         fail("projects", "the page has headings below h2; the project list is a plain list")
     work = re.search(r"How we work.*?</h2>\s*<div class=\"lead\">(.*?)</div>", html_text, re.S)
     lead = re.findall(r"<p>(.*?)</p>", work.group(1)) if work else []
-    if not 2 <= len(lead) <= 3:
+    if not 2 <= sum(len(sentences_of(p)) for p in lead) <= 3:
         fail("content", "How we work needs two or three sentences")
     check_prose(page.paragraphs, "index.html")
-    visible = " ".join([text] + page.values + page.hidden)
-    if not visible.isascii():
-        fail("voice", "the page has characters that are not plain ASCII")
-    return visible
+    return " ".join([text] + page.values + page.hidden)
 
 
 def emitted(visible):
@@ -337,6 +381,8 @@ def emitted(visible):
 def check_leaks(visible, deny):
     house_hosts = {u.split("//", 1)[1] for u in HOUSE_URLS}
     for name, source in emitted(visible):
+        if not source.isascii():
+            fail("voice", f"docs/{name} has characters that are not plain ASCII")
         for match in GITHUB.findall(source):
             ok = match in house_hosts or any(
                 match == f"github.com/{OWNER}/{repo}" for repo in PUBLIC_REPOS
@@ -396,6 +442,7 @@ def check_css():
         fail("dark", "dark mode needs a black ground and white type")
     if light["red"].lower() != night["red"].lower():
         fail("dark", "the red must be the same in light and dark")
+    check_refs(css, "style.css", "css")
     accents = split_accent(colours_of(css, "style.css"), "style.css")
     if accents != {light["red"].lower()}:
         fail("accent", f"style.css needs exactly one accent colour, the red; found {sorted(accents)}")
@@ -407,6 +454,50 @@ def rects_of(d):
     for m in re.finditer(r"M(-?\d+) (-?\d+)h(\d+)v(\d+)h-\d+z", d):
         x, y, w, h = (int(g) for g in m.groups())
         yield x, y, w, h
+
+
+def paint_colours(value, where):
+    v = value.strip()
+    if v.lower() in PAINT_KEYWORDS or FRAGMENT_URL.fullmatch(v):
+        return set()
+    if re.fullmatch(r"#[0-9a-fA-F]+", v):
+        return colours_of(v, where)
+    fail("colour", f"{where} paints with {v[:30]!r}; write the colour as hex")
+    return set()
+
+
+def svg_colours(tree, where):
+    """Every colour an svg sets: style rules, style attributes and paint attributes."""
+    found = set()
+    for el in tree.iter():
+        local = el.tag.rsplit("}", 1)[-1]
+        texts = [el.text or ""] if local == "style" else []
+        for key, value in el.attrib.items():
+            name = key.rsplit("}", 1)[-1]
+            if name in PAINT_PROPS:
+                found |= paint_colours(value, where)
+            elif name == "style":
+                texts.append(value)
+        for text in texts:
+            for _, value in PAINT_DECL.findall(text):
+                found |= paint_colours(value, where)
+            found |= colours_of(text, where)
+            check_refs(text, where, "svg")
+    return found
+
+
+def check_svg_safety(tree, where):
+    for el in tree.iter():
+        local = el.tag.rsplit("}", 1)[-1]
+        if local in SVG_FORBIDDEN:
+            rule = "colour" if local in ("linearGradient", "radialGradient", "stop") else "no-js"
+            fail(rule, f"{where} has <{local}>, which this site does not use")
+        for key, value in el.attrib.items():
+            name = key.rsplit("}", 1)[-1]
+            if re.fullmatch(r"on[a-z]+", name.lower()):
+                fail("no-js", f"{where} has an event handler ({name})")
+            if name == "href" and not value.startswith("#"):
+                fail("links", f"{where} has an href that is not an id of its own")
 
 
 def check_svgs(hero_rel):
@@ -421,8 +512,8 @@ def check_svgs(hero_rel):
             fail("parse", f"{rel} is not valid XML: {exc}")
             continue
         trees[rel] = tree
-        style = " ".join(e.text or "" for e in tree.iter("{http://www.w3.org/2000/svg}style"))
-        accents = split_accent(colours_of(style, rel), rel)
+        check_svg_safety(tree, rel)
+        accents = split_accent(svg_colours(tree, rel), rel)
         if accents != {"#e5251c"}:
             fail("accent", f"{rel} needs exactly one accent colour; found {sorted(accents)}")
     tree = trees.get(hero_rel)
@@ -531,16 +622,27 @@ def move_weave(docs, hero):
     path.write_text(moved, encoding="utf-8")
 
 
-def site_copy(root, name):
-    """A copy of the generator in root, with site.json renamed to name."""
+def site_copy(root, name, tagline=None):
+    """Build a copy of the generator in root, with another name and, if given, another tagline."""
     (root / "src").mkdir(parents=True)
-    for rel in ("build.py", "src/style.css", "site.json"):
+    for rel in ("build.py", "src/style.css"):
         shutil.copy(ROOT / rel, root / rel)
-    text = (root / "site.json").read_text(encoding="utf-8")
-    renamed = text.replace(f'"name": "{site_name()}"', f'"name": "{name}"', 1)
-    (root / "site.json").write_text(renamed, encoding="utf-8")
+    data = json.loads((ROOT / "site.json").read_text(encoding="utf-8"))
+    data["name"] = name
+    if tagline is not None:
+        data["tagline"] = tagline
+    (root / "site.json").write_text(json.dumps(data), encoding="utf-8")
     env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
     return subprocess.run([sys.executable, str(root / "build.py")], capture_output=True, env=env)
+
+
+def tagline_keeps_its_tail():
+    """True when a tagline whose last part has no end mark is still shown in full."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "site"
+        done = site_copy(root, site_name(), tagline="First part. Last part without a stop")
+        page = (root / "docs" / "index.html").read_text(encoding="utf-8") if done.returncode == 0 else ""
+        return "<span>First part.</span>" in page and "<span>Last part without a stop</span>" in page
 
 
 def build_rejects(bad_name):
@@ -613,6 +715,27 @@ def self_test():
         ("hero file is not valid XML", "parse", [], lambda d: (d / hero).write_text("<svg", encoding="utf-8")),
         ("header shows another image", "hero", [], lambda d: edit(d, "index.html", f'src="{hero}"', 'src="mark.svg"')),
         ("hero file missing", "files", [], lambda d: (d / hero).unlink()),
+        ("non-ASCII in llms.txt", "voice", [], lambda d: edit(d, "llms.txt", "## Houses", "caf\u00e9\n\n## Houses")),
+        ("four sentences in how we work", "content", [], lambda d: edit(d, "index.html", "A benchmark has a script and a claim has a test.", "A benchmark has a script. A claim has a test.")),
+        ("accent in a fill attribute", "accent", [], lambda d: edit(d, hero, '<rect class="g"', '<rect fill="#0000ff" class="g"')),
+        ("accent in a style attribute", "accent", [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<rect style="fill:#00f" class="k"')),
+        ("accent in stop-color", "accent", [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<rect stop-color="#00ff00" class="k"')),
+        ("named colour in a stroke", "colour", [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<rect stroke="red" class="k"')),
+        ("named colour in an svg rule", "colour", [], lambda d: edit(d, "mark.svg", ".k{fill:", ".k{stroke:red;fill:")),
+        ("gradient in the hero", "colour", [], lambda d: edit(d, hero, "<defs>", '<defs><linearGradient id="z"/>')),
+        ("private name in a class value", "private", ["zzprivate"], lambda d: edit(d, "index.html", '<main id="main">', '<main id="main" class="zzprivate">')),
+        ("private name in an id value", "private", ["zzprivate"], lambda d: edit(d, "index.html", 'id="work"', 'id="zzprivate"')),
+        ("unknown attribute", "attrs", [], lambda d: edit(d, "index.html", '<main id="main">', '<main id="main" data-x="1">')),
+        ("css imports a remote file", "links", [], lambda d: edit(d, "style.css", ":root{", '@import url("https://example.net/x.css");:root{')),
+        ("css string import", "links", [], lambda d: edit(d, "style.css", ":root{", '@import "https://example.net/x.css";:root{')),
+        ("css url on a look-alike font host", "links", [], lambda d: edit(d, "style.css", ":root{", "a{background:url(https://fonts.gstatic.com.example.net/f.woff2)}:root{")),
+        ("css url leaves docs/", "links", [], lambda d: edit(d, "style.css", ":root{", "a{background:url(../README.md)}:root{")),
+        ("css data url", "links", [], lambda d: edit(d, "style.css", ":root{", "a{background:url(data:image/png;base64,AAAA)}:root{")),
+        ("css uses a font host and a local file", None, [], lambda d: edit(d, "style.css", ":root{", '@import url("https://fonts.googleapis.com/css2?family=Geist");a{background:url(mark.svg)}:root{')),
+        ("script in the hero svg", "no-js", [], lambda d: edit(d, hero, "<title>", "<script>1</script><title>")),
+        ("event handler in the mark svg", "no-js", [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<rect onclick="x()" class="k"')),
+        ("external href in the hero svg", "links", [], lambda d: edit(d, hero, "<defs>", '<defs><use href="https://example.net/x.svg#a"/>')),
+        ("remote url in an svg rule", "links", [], lambda d: edit(d, hero, "<style>", "<style>.z{fill:url(https://example.net/x.svg#a)}")),
     ]
     total, bad = 0, 0
 
@@ -643,6 +766,7 @@ def self_test():
         for bad_name in ("../evil", "Machine", "a..b", "-x", "a/b"):
             report(build_rejects(bad_name), f"build.py accepted the site name {bad_name!r}")
         report(renamed_site_passes("loom-x"), "a site under another name does not pass the checks")
+        report(tagline_keeps_its_tail(), "build.py cuts a tagline whose last part has no end mark")
         missing = str(Path(tmp) / "missing")
         report(cli_fails(["--deny"], "FAIL args:"), "--deny without a file")
         report(cli_fails(["--deny", missing], "FAIL deny:"), "--deny with a missing file")

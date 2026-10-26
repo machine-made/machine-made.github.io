@@ -26,7 +26,7 @@ deterministic: the same `site.json` gives the same bytes.
 | `src/style.css` | The style. `build.py` adds the colours and writes `docs/style.css` |
 | `check_site.py` | The checks for the built site |
 | `gate.sh` | The gate |
-| `shots.py` | Screenshots at 1440 px and 375 px, and the scroll check. Writes `shots/` |
+| `shots.py` | Screenshots at 1440 px and 375 px, the scroll check and the line-length check. Writes `shots/` |
 | `DESIGN.md` | The grid, the type, the colour and the weave algorithm |
 | `docs/` | The built site. Do not edit by hand |
 

@@ -347,8 +347,8 @@ def repo_url(site, repo):
 
 def page_html(site):
     name = site["name"]
-    sentences = re.findall(r"[^.!?]+[.!?]", site["tagline"]) or [site["tagline"]]
-    tagline = " ".join(f"<span>{esc(s.strip())}</span>" for s in sentences)
+    sentences = re.split(r"(?<=[.!?])\s+", site["tagline"].strip())
+    tagline = " ".join(f"<span>{esc(s)}</span>" for s in sentences if s)
     principles = "\n".join(f"<p>{esc(line)}</p>" for line in site["principles"])
     projects = "\n".join(
         f'<li><a href="{esc(repo_url(site, p["repo"]))}">{esc(p["repo"])}</a>'

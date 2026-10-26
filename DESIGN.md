@@ -17,7 +17,9 @@ the weave in the header. Every section starts its text there.
 - Geist Mono for the name, headings and project names. Geist for reading. Both from Google
   Fonts, linked from the page.
 - Scale 1.25 on a 17 px base: 13.6, 17, 21.25, 26.6 px. The name is fluid: 30 to 48 px on small screens, 24 to 52 px beside the weave.
-- Sentence case. No capitals for emphasis. Line length under 70 characters.
+- Sentence case. No capitals for emphasis.
+- Body copy is capped at 34rem (the larger intro at 36rem), so a line has fewer than 70 characters.
+  `shots.py` counts the longest line at every width and fails at 70 or more.
 
 ## Colour
 

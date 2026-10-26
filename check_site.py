@@ -12,6 +12,7 @@ repository-shaped name that is not public.
 """
 
 import argparse
+import html
 import json
 import os
 import re
@@ -48,7 +49,9 @@ FILE_NAME = re.compile(r"[a-z0-9][a-z0-9._-]*")
 FONT_HOSTS = ("fonts.googleapis.com", "fonts.gstatic.com")
 FRAME = (1408, 469)
 FORBIDDEN = re.compile(
-    r"[$\u20ac\u00a3]\s?[0-9]|[0-9]\s?(?:usd|chf|eur)\b|tokens|punchcard|night-shift|nexus", re.I
+    r"[$\u20ac\u00a3]\s?[0-9]|\b(?:usd|chf|eur)\s?[0-9]|[0-9]\s?(?:usd|chf|eur)\b"
+    r"|tokens|punchcard|night-shift|nexus",
+    re.I,
 )
 VOID = {"meta", "link", "img", "br", "hr", "input", "source", "track", "area", "base", "col", "embed", "wbr"}
 GITHUB = re.compile(r"github\.com/[\w.-]+(?:/[\w.-]+)*", re.I)
@@ -57,6 +60,7 @@ MAX_WORDS = 25
 # Tags that run code or load a resource. The page needs none of them.
 FORBIDDEN_TAGS = (
     "script", "iframe", "object", "embed", "form", "input", "button", "audio", "video", "source", "track",
+    "base",
 )
 ALLOWED_ATTRS = {
     "lang", "charset", "name", "content", "rel", "href", "type", "crossorigin", "class", "id",
@@ -437,11 +441,20 @@ def emitted(visible: str) -> Iterator[tuple[str, str]]:
             yield name, path.read_text(encoding="utf-8", errors="replace")
 
 
+def decoded(source: str) -> str:
+    """source with every character reference decoded, however deeply it is nested."""
+    while (plain := html.unescape(source)) != source:
+        source = plain
+    return source
+
+
 def check_leaks(visible: str, deny: list[str]) -> None:
     house_hosts = {u.split("//", 1)[1] for u in HOUSE_URLS}
-    for name, source in emitted(visible):
-        if not source.isascii():
+    for name, raw in emitted(visible):
+        if not raw.isascii():
             fail("voice", f"docs/{name} has characters that are not plain ASCII")
+        # An svg or a page can spell a name with &#x..; references. Match the raw and the decoded text.
+        source = raw + "\n" + decoded(raw)
         for match in GITHUB.findall(source):
             ok = match in house_hosts or any(
                 match == f"github.com/{OWNER}/{repo}" for repo in PUBLIC_REPOS
@@ -653,6 +666,7 @@ def check_svg_safety(tree: ET.Element, where: str) -> None:
                 fail("no-js", f"{where} has an event handler ({name})")
             if name == "href" and not value.startswith("#"):
                 fail("links", f"{where} has an href that is not an id of its own")
+            check_refs(value, where, "svg")
 
 
 def check_svgs(hero_rel: str | None) -> None:
@@ -931,6 +945,19 @@ def self_test() -> None:
         ("a pair of palette tokens is allowed", None, [], lambda d: edit(d, "style.css", "box-sizing", "color:var(--muted);background:var(--bg) !important;box-sizing")),
         ("upper-case colour function", "colour", [], lambda d: edit(d, "style.css", "box-sizing", "color:RGB(0,0,255);box-sizing")),
         ("upper-case gradient", "colour", [], lambda d: edit(d, "style.css", "box-sizing", "background:LINEAR-GRADIENT(red,blue);box-sizing")),
+        ("base tag", "no-js", [], lambda d: edit(d, "index.html", "<body>", '<body><base href="https://example.net/">')),
+        ("private name as a character reference in the hero", "private", ["zzprivate"], lambda d: edit(d, hero, "<title>", "<title>zz&#x70;rivate ")),
+        ("private name as a nested reference in an attribute", "private", ["zzprivate"], lambda d: edit(d, "mark.svg", '<rect class="k"', '<rect id="zz&amp;#112;rivate" class="k"')),
+        ("private repo as a character reference in the hero", "private", [], lambda d: edit(d, hero, "<title>", "<title>github.com/&#x6d;achine-made/zzprivate ")),
+        ("remote url in a filter attribute", "links", [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<rect filter="url(https://example.net/x.svg#f)" class="k"')),
+        ("remote url in a mask attribute", "links", [], lambda d: edit(d, hero, '<rect class="g"', '<rect mask="url(//example.net/x.svg#m)" class="g"')),
+        ("remote url in a clip-path attribute", "links", [], lambda d: edit(d, hero, '<rect class="g"', '<rect clip-path="url(x.svg#c)" class="g"')),
+        ("remote url in a fill attribute", "links", [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<rect fill="url(https://example.net/x.svg#f)" class="k"')),
+        ("local fragment in a filter attribute", None, [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<rect filter="url(#f)" class="k"')),
+        ("USD before an amount", "forbidden", [], lambda d: edit(d, "llms.txt", "## Houses", "USD 5\n\n## Houses")),
+        ("CHF before an amount", "forbidden", [], lambda d: edit(d, "llms.txt", "## Houses", "chf 5\n\n## Houses")),
+        ("EUR before an amount", "forbidden", [], lambda d: edit(d, "llms.txt", "## Houses", "Eur5\n\n## Houses")),
+        ("USD after an amount", "forbidden", [], lambda d: edit(d, "llms.txt", "## Houses", "5 USD\n\n## Houses")),
         ("private name as an element name", "private", ["zzprivate"], lambda d: edit(d, "index.html", "<body>", "<body><zzprivate></zzprivate>")),
     ]
     total, bad = 0, 0

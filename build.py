@@ -298,7 +298,7 @@ def load_site():
         fail(f"cannot read site.json: {exc}", "Fix site.json so that it is valid JSON.")
 
     def need(obj, key, kind, where):
-        if not isinstance(obj, dict) or not isinstance(obj.get(key), kind):
+        if not isinstance(obj, dict) or type(obj.get(key)) is not kind:
             fail(f"{where}.{key} is missing or has the wrong type", f"Set {where}.{key} in site.json.")
         return obj[key]
 

@@ -15,7 +15,7 @@ python3 shots.py        # screenshots in shots/, light and dark; needs Playwrigh
 ```
 
 `build.py` and `check_site.py` use only the Python 3.11 standard library. The build is
-deterministic: the same `site.json` gives the same bytes.
+deterministic: the same source tree gives the same bytes.
 
 ## Files
 

@@ -311,9 +311,9 @@ def load_site() -> dict[str, Any]:
         ("tagline", str),
         ("owner", str),
         ("footer", str),
+        ("subtitle", str),
         ("year", int),
-        ("principles", list),
-        ("projects", list),
+        ("groups", list),
         ("houses", list),
     ):
         need(site, key, kind, "site")
@@ -322,23 +322,41 @@ def load_site() -> dict[str, Any]:
             "site.name cannot be used as a file name",
             "Use lower-case letters, digits, dot, dash or underscore; start with a letter or digit; no '..'.",
         )
-    for i, item in enumerate(site["principles"]):
-        if not isinstance(item, str):
-            fail(f"principles[{i}] is not a string", "Write each principle as one short sentence.")
-    for i, item in enumerate(site["projects"]):
-        for key in ("repo", "line"):
-            need(item, key, str, f"projects[{i}]")
-        if not REPO_NAME.fullmatch(item["repo"]) or ".." in item["repo"]:
-            fail(f"projects[{i}].repo is not a repository name", "Use letters, digits, dot, dash or underscore; start with a letter or digit; no '..'.")
+    if not site["groups"]:
+        fail("site.groups is empty", "List at least one group of projects.")
+    slugs: set[str] = {"main", "houses"}
+    repos: list[str] = []
+    for g, group in enumerate(site["groups"]):
+        where = f"groups[{g}]"
+        need(group, "title", str, where)
+        need(group, "projects", list, where)
+        if not slug(group["title"]) or slug(group["title"]) in slugs:
+            fail(f"{where}.title gives no unique id", "Give each group its own title of letters and digits.")
+        slugs.add(slug(group["title"]))
+        if not group["projects"]:
+            fail(f"{where} has no projects", "Remove the group or list a project in it.")
+        for i, item in enumerate(group["projects"]):
+            for key in ("repo", "line"):
+                need(item, key, str, f"{where}.projects[{i}]")
+            if not REPO_NAME.fullmatch(item["repo"]) or ".." in item["repo"]:
+                fail(f"{where}.projects[{i}].repo is not a repository name", "Use letters, digits, dot, dash or underscore; start with a letter or digit; no '..'.")
+            if "site" in item:
+                need(item, "site", str, f"{where}.projects[{i}]")
+                if not item["site"].startswith("https://"):
+                    fail(f"{where}.projects[{i}].site is not https", "Use an https URL.")
+            repos.append(item["repo"])
     for i, item in enumerate(site["houses"]):
         for key in ("name", "line", "url"):
             need(item, key, str, f"houses[{i}]")
         if not item["url"].startswith("https://"):
             fail(f"houses[{i}].url is not https", "Use an https URL.")
-    repos = [p["repo"] for p in site["projects"]]
     if len(set(repos)) != len(repos):
-        fail("two projects share one repo name", "Remove the duplicate from projects.")
+        fail("two projects share one repo name", "Remove the duplicate from the groups.")
     return site
+
+
+def slug(title: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
 
 
 def esc(text: str) -> str:
@@ -349,15 +367,26 @@ def repo_url(site: dict[str, Any], repo: str) -> str:
     return f"https://github.com/{site['owner']}/{repo}"
 
 
+def project_items(site: dict[str, Any], projects: list[dict[str, str]]) -> str:
+    items = []
+    for p in projects:
+        extra = f' <a class="site" href="{esc(p["site"])}">site</a>' if "site" in p else ""
+        items.append(
+            f'<li><a href="{esc(repo_url(site, p["repo"]))}">{esc(p["repo"])}</a>'
+            f'<p>{esc(p["line"])}{extra}</p></li>'
+        )
+    return "\n".join(items)
+
+
 def page_html(site: dict[str, Any]) -> str:
     name = site["name"]
     sentences = re.split(r"(?<=[.!?])\s+", site["tagline"].strip())
     tagline = " ".join(f"<span>{esc(s)}</span>" for s in sentences if s)
-    principles = "\n".join(f"<p>{esc(line)}</p>" for line in site["principles"])
-    projects = "\n".join(
-        f'<li><a href="{esc(repo_url(site, p["repo"]))}">{esc(p["repo"])}</a>'
-        f'<p>{esc(p["line"])}</p></li>'
-        for p in site["projects"]
+    groups = "\n".join(
+        f'<section class="section" aria-labelledby="{slug(g["title"])}">\n'
+        f'<div class="wrap split">\n<h2 id="{slug(g["title"])}">{esc(g["title"])}</h2>\n'
+        f'<ul class="projects">\n{project_items(site, g["projects"])}\n</ul>\n</div>\n</section>'
+        for g in site["groups"]
     )
     houses = " and ".join(
         f'<a href="{esc(h["url"])}">{esc(h["name"])}</a> ({esc(h["line"])})' for h in site["houses"]
@@ -385,28 +414,14 @@ def page_html(site: dict[str, Any]) -> str:
 <div>
 <h1>{esc(name)}</h1>
 <p class="tagline">{tagline}</p>
+<p class="subtitle">{esc(site['subtitle'])}</p>
 </div>
 </div>
 <img class="hero" src="heroes/{esc(name)}.svg" width="{FRAME_W}" height="{FRAME_H}" alt="Weave pattern generated from the name {esc(name)}">
 </div>
 </header>
 <main id="main">
-<section class="section" aria-labelledby="work">
-<div class="wrap split">
-<h2 id="work">How we work</h2>
-<div class="lead">
-{principles}
-</div>
-</div>
-</section>
-<section class="section" aria-labelledby="projects">
-<div class="wrap split">
-<h2 id="projects">Projects</h2>
-<ul class="projects">
-{projects}
-</ul>
-</div>
-</section>
+{groups}
 <section class="section" aria-labelledby="houses">
 <div class="wrap split">
 <h2 id="houses">Houses</h2>
@@ -426,14 +441,17 @@ def page_html(site: dict[str, Any]) -> str:
 
 
 def llms_txt(site: dict[str, Any]) -> str:
-    projects = "\n".join(
-        f"- [{p['repo']}]({repo_url(site, p['repo'])}): {p['line']}" for p in site["projects"]
+    def entry(p: dict[str, str]) -> str:
+        extra = f" ([site]({p['site']}))" if "site" in p else ""
+        return f"- [{p['repo']}]({repo_url(site, p['repo'])}): {p['line']}{extra}"
+
+    groups = "\n\n".join(
+        f"## {g['title']}\n\n" + "\n".join(entry(p) for p in g["projects"]) for g in site["groups"]
     )
     houses = "\n".join(f"- [{h['name']}]({h['url']}): {h['line']}" for h in site["houses"])
     return (
-        f"# {site['name']}\n\n> {site['tagline']}\n\n"
-        + " ".join(site["principles"])
-        + f"\n\n## Projects\n\n{projects}\n\n## Houses\n\n{houses}\n"
+        f"# {site['name']}\n\n> {site['tagline']}\n\n{site['subtitle']}\n\n"
+        f"{groups}\n\n## Houses\n\n{houses}\n\n{site['footer']}\n"
     )
 
 

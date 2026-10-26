@@ -31,19 +31,17 @@ ROOT = Path(__file__).resolve().parent
 DOCS = ROOT / "docs"
 
 OWNER = "machine-made"
-PUBLIC_REPOS = (
-    "minuit2-rs",
-    "libsvm-rs",
-    "nebula-quanta",
-    "pdf-next",
-    "vscode-pdf-next",
-    "vscode-diff-next",
-    "bun-do",
-    "homebrew-tap",
+GROUPS = (
+    ("Science and numerics", ("minuit2-rs", "libsvm-rs", "nebula-quanta", "dynachaos", "chaos-atlas", "nanochat-rs")),
+    ("Desktop and editor tools", ("pdf-next", "vscode-pdf-next", "vscode-diff-next", "homebrew-tap")),
+    ("Tools for agents", ("bun-do", "fortran-lsp", "pi-effort")),
 )
+PUBLIC_REPOS = tuple(repo for _, repos in GROUPS for repo in repos)
+SITE_LINKS = {"chaos-atlas": "https://machine-made.github.io/chaos-atlas/"}
 HOUSE_URLS = ("https://github.com/openfluids", "https://github.com/BoringQuantSystems")
 TAGLINE = "Made by machines. Proven for machines."
-FOOTER = "Made by agents. Directed by a person."
+SUBTITLE = "A lab run by machines."
+FOOTER = "Made by agents. Directed by a person, in spare time."
 BASE_FILES = {"index.html", "style.css", "mark.svg", "llms.txt"}
 FILE_NAME = re.compile(r"[a-z0-9][a-z0-9._-]*")
 FONT_HOSTS = ("fonts.googleapis.com", "fonts.gstatic.com")
@@ -54,6 +52,7 @@ FORBIDDEN = re.compile(
     re.I,
 )
 VOID = {"meta", "link", "img", "br", "hr", "input", "source", "track", "area", "base", "col", "embed", "wbr"}
+GITHUB_URL = r"https://github\.com"
 GITHUB = re.compile(r"github\.com/[\w.-]+(?:/[\w.-]+)*", re.I)
 RS_NAME = re.compile(r"(?<![\w-])[a-z0-9][a-z0-9._-]*-rs(?![\w-])", re.I)
 MAX_WORDS = 25
@@ -363,6 +362,7 @@ def check_html(page: Page, html_text: str, name: str | None, hero_rel: str | Non
                     fail("links", f"{href} is an external resource that is not a font")
             elif not (
                 href in HOUSE_URLS
+                or href in SITE_LINKS.values()
                 or any(href == f"https://github.com/{OWNER}/{repo}" for repo in PUBLIC_REPOS)
             ):
                 fail("links", f"{href} is not in the public list")
@@ -409,25 +409,41 @@ def check_prose(paragraphs: list[str], where: str) -> None:
                 fail("voice", f"{where}: a sentence has more than {MAX_WORDS} words: {sentence[:40]}")
 
 
+def group_lists(source: str, pattern: str) -> list[tuple[str, list[str]]]:
+    """(title, repositories) for each group in a page or in llms.txt. pattern captures title and body."""
+    return [
+        (title, re.findall(rf"{GITHUB_URL}/{OWNER}/([\w.-]+)", body))
+        for title, body in re.findall(pattern, source, re.S)
+    ]
+
+
 def check_content(page: Page, html_text: str) -> str:
     text = " ".join(" ".join(page.text).split())
-    for needed in (TAGLINE, FOOTER):
+    for needed in (TAGLINE, SUBTITLE, FOOTER):
         if needed not in text:
             fail("content", f'the page lacks "{needed}"')
+    if not re.search(
+        rf'<p class="tagline">(?:(?!</p>).)*</p>\s*<p class="subtitle">{re.escape(SUBTITLE)}</p>', html_text, re.S
+    ):
+        fail("content", "the subtitle line must follow the tagline")
     hrefs = [link.get("href") or "" for link in page.links if link.get("tag") != "link"]
     repo_links = [h for h in hrefs if h.startswith(f"https://github.com/{OWNER}/")]
     expected = [f"https://github.com/{OWNER}/{repo}" for repo in PUBLIC_REPOS]
     if sorted(repo_links) != sorted(expected):
-        fail("projects", "the project links are not exactly the eight public repositories")
-    for url in HOUSE_URLS:
+        fail("projects", "the project links are not exactly the public repositories")
+    for url in [*HOUSE_URLS, *SITE_LINKS.values()]:
         if hrefs.count(url) != 1:
-            fail("houses", f"{url} must be linked once")
+            fail("links", f"{url} must be linked once")
     if any(kind == "h3" for kind, _ in page.headings):
-        fail("projects", "the page has headings below h2; the project list is a plain list")
-    work = re.search(r"How we work.*?</h2>\s*<div class=\"lead\">(.*?)</div>", html_text, re.S)
-    lead = re.findall(r"<p>(.*?)</p>", work.group(1)) if work else []
-    if not 2 <= sum(len(sentences_of(p)) for p in lead) <= 3:
-        fail("content", "How we work needs two or three sentences")
+        fail("projects", "the page has headings below h2; each project list is a plain list")
+    found = group_lists(html_text, r'<h2 id="[\w-]+">([^<]*)</h2>\s*<ul class="projects">(.*?)</ul>')
+    if found != [(title, list(repos)) for title, repos in GROUPS]:
+        fail("projects", "the projects are not in the three groups, in order, under their headings")
+    if [h for kind, h in page.headings if kind == "h2"] != [t for t, _ in GROUPS] + ["Houses"]:
+        fail("projects", "the h2 headings must be the group titles, then Houses")
+    for repo, url in SITE_LINKS.items():
+        if not re.search(rf'<a href="https://github.com/{OWNER}/{repo}">{repo}</a><p>[^<]*<a class="site" href="{re.escape(url)}">site</a></p>', html_text):
+            fail("projects", f"{repo} needs a second link labelled site to {url}")
     check_prose(page.paragraphs, "index.html")
     return " ".join([text] + page.values + page.hidden + page.tags)
 
@@ -718,11 +734,16 @@ def check_llms(name: str | None) -> None:
     if not text:
         return
     links = re.findall(r"\]\((https://[^)]+)\)", text)
-    expected = [f"https://github.com/{OWNER}/{r}" for r in PUBLIC_REPOS] + list(HOUSE_URLS)
+    expected = [f"https://github.com/{OWNER}/{r}" for r in PUBLIC_REPOS] + list(HOUSE_URLS) + list(SITE_LINKS.values())
     if sorted(links) != sorted(expected):
-        fail("llms", "llms.txt must list exactly the eight public repositories and the two houses")
-    if name and not text.startswith(f"# {name}\n\n> {TAGLINE}"):
-        fail("llms", "llms.txt must start with the name and the line")
+        fail("llms", "llms.txt must list exactly the public repositories, the site link and the two houses")
+    if name and not text.startswith(f"# {name}\n\n> {TAGLINE}\n\n{SUBTITLE}\n\n## "):
+        fail("llms", "llms.txt must start with the name, the line and the subtitle line")
+    if not text.endswith(f"\n\n{FOOTER}\n"):
+        fail("llms", "llms.txt must end with the footer line")
+    found = group_lists(text, r"## ([^\n]+)\n\n((?:- [^\n]*\n?)+)")
+    if [(t, r) for t, r in found if t != "Houses"] != [(title, list(repos)) for title, repos in GROUPS]:
+        fail("llms", "llms.txt must follow the three groups, in order")
     lines = (re.sub(r"^[#>-]+\s*", "", line) for line in text.splitlines())
     check_prose([re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", line) for line in lines], "llms.txt")
 
@@ -783,6 +804,12 @@ def edit(docs: Path, name: str, old: str, new: str) -> None:
     if old not in text:
         raise AssertionError(f"self-test is stale: {old!r} is not in docs/{name}")
     path.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+
+def edit_all(docs: Path, name: str, *pairs: tuple[str, str]) -> None:
+    """Apply several edits to one file, in order."""
+    for old, new in pairs:
+        edit(docs, name, old, new)
 
 
 def move_weave(docs: Path, hero: str) -> None:
@@ -896,7 +923,21 @@ def self_test() -> None:
         ("header shows another image", "hero", [], lambda d: edit(d, "index.html", f'src="{hero}"', 'src="mark.svg"')),
         ("hero file missing", "files", [], lambda d: (d / hero).unlink()),
         ("non-ASCII in llms.txt", "voice", [], lambda d: edit(d, "llms.txt", "## Houses", "caf\u00e9\n\n## Houses")),
-        ("four sentences in how we work", "content", [], lambda d: edit(d, "index.html", "A benchmark has a script and a claim has a test.", "A benchmark has a script. A claim has a test.")),
+        ("subtitle line missing", "content", [], lambda d: edit(d, "index.html", f'<p class="subtitle">{SUBTITLE}</p>', "")),
+        ("subtitle line changed", "content", [], lambda d: edit(d, "index.html", "A lab", "A job")),
+        ("subtitle line before the tagline", "content", [], lambda d: edit_all(d, "index.html", (f'<p class="subtitle">{SUBTITLE}</p>', ""), ('<p class="tagline">', f'<p class="subtitle">{SUBTITLE}</p><p class="tagline">'))),
+        ("subtitle line missing in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", f"{SUBTITLE}\n\n", "")),
+        ("old footer on the page", "content", [], lambda d: edit(d, "index.html", ", in spare time.", ".")),
+        ("old footer in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", ", in spare time.", ".")),
+        ("footer missing in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", f"\n\n{FOOTER}", "")),
+        ("old subtitle line", "content", [], lambda d: edit(d, "index.html", "A lab run by machines.", "A hobby: side projects, made in spare time.")),
+        ("how we work comes back", "projects", [], lambda d: edit(d, "index.html", '<main id="main">', '<main id="main"><h2 id="work">How we work</h2>')),
+        ("a group heading is renamed", "projects", [], lambda d: edit(d, "index.html", ">Tools for agents<", ">Tools<")),
+        ("two projects swap groups", "projects", [], lambda d: edit_all(d, "index.html", (f'{OWNER}/bun-do"', f'{OWNER}/tmp"'), (f'{OWNER}/pdf-next"', f'{OWNER}/bun-do"'), (f'{OWNER}/tmp"', f'{OWNER}/pdf-next"'))),
+        ("a group heading is renamed in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", "## Tools for agents", "## Tools")),
+        ("site link missing", "links", [], lambda d: edit(d, "index.html", ' <a class="site" href="https://machine-made.github.io/chaos-atlas/">site</a>', "")),
+        ("site link on another host", "links", [], lambda d: edit(d, "index.html", "https://machine-made.github.io/chaos-atlas/", "https://example.net/chaos-atlas/")),
+        ("site link to another path", "links", [], lambda d: edit(d, "index.html", "https://machine-made.github.io/chaos-atlas/", "https://machine-made.github.io/other/")),
         ("accent in a fill attribute", "accent", [], lambda d: edit(d, hero, '<rect class="g"', '<rect fill="#0000ff" class="g"')),
         ("accent in a style attribute", "accent", [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<rect style="fill:#00f" class="k"')),
         ("accent in stop-color", "accent", [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<rect stop-color="#00ff00" class="k"')),
@@ -904,7 +945,7 @@ def self_test() -> None:
         ("named colour in an svg rule", "accent", [], lambda d: edit(d, "mark.svg", ".k{fill:", ".k{stroke:red;fill:")),
         ("gradient in the hero", "colour", [], lambda d: edit(d, hero, "<defs>", '<defs><linearGradient id="z"/>')),
         ("private name in a class value", "private", ["zzprivate"], lambda d: edit(d, "index.html", '<main id="main">', '<main id="main" class="zzprivate">')),
-        ("private name in an id value", "private", ["zzprivate"], lambda d: edit(d, "index.html", 'id="work"', 'id="zzprivate"')),
+        ("private name in an id value", "private", ["zzprivate"], lambda d: edit(d, "index.html", 'id="houses"', 'id="zzprivate"')),
         ("unknown attribute", "attrs", [], lambda d: edit(d, "index.html", '<main id="main">', '<main id="main" data-x="1">')),
         ("css imports a remote file", "links", [], lambda d: edit(d, "style.css", ":root{", '@import url("https://example.net/x.css");:root{')),
         ("css string import", "links", [], lambda d: edit(d, "style.css", ":root{", '@import "https://example.net/x.css";:root{')),
@@ -988,6 +1029,17 @@ def self_test() -> None:
         DOCS = real
         for bad_name in ("../evil", "Machine", "a..b", "-x", "a/b"):
             report(build_rejects({"name": bad_name}), f"build.py accepted the site name {bad_name!r}")
+        bad_sites: list[dict[str, object]] = [
+            {"groups": []},
+            {"groups": "x"},
+            {"groups": [{"title": "A", "projects": []}]},
+            {"groups": [{"title": "A", "projects": [{"repo": "x", "line": "y"}]}, {"title": "a!", "projects": [{"repo": "z", "line": "y"}]}]},
+            {"groups": [{"title": "A", "projects": [{"repo": "x", "line": "y"}, {"repo": "x", "line": "y"}]}]},
+            {"groups": [{"title": "A", "projects": [{"repo": "x", "line": "y", "site": "http://x"}]}]},
+            {"subtitle": 5},
+        ]
+        for changes in bad_sites:
+            report(build_rejects(changes), f"build.py accepted {str(changes)[:60]}")
         for bad_year in (True, False, "2026", 2026.0, None):
             report(build_rejects({"year": bad_year}), f"build.py accepted the year {bad_year!r}")
         report(renamed_site_passes("loom-x"), "a site under another name does not pass the checks")

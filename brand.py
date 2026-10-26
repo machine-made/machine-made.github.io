@@ -2,8 +2,9 @@
 """The profile hero and the avatar, drawn from card.py, the module that draws the logo and the cards of the website.
 
 Usage: python3 brand.py --fonts DIR [--out DIR]
---fonts  a folder of Geist woff2 files (names like geist-latin-400-normal.woff2). Needed. The
-         type in the hero is cut into outlines from these files, so the hero needs no font.
+--fonts  the folder of the site fonts: fonts/ in this repository (mm-weft.woff2, mm-sans.woff2,
+         which fonts.py cuts from machine-made/type). Needed. The type in the hero is cut into
+         outlines from these files at fixed axis values, so the hero needs no font.
 --out    where the files go; default brand/ in this repository.
 
 Writes profile-hero-light.svg, profile-hero-dark.svg, each as a PNG at 1408 by 469 px and, as
@@ -30,39 +31,58 @@ AVATAR = 1024
 AVATAR_LOGO = 660
 # The header of the site, drawn in the frame. Sizes and baselines are in frame pixels.
 LEFT = 64
-WORDMARK = (48, 168)
+WORDMARK = (42, 168)
 LOGO = 34
 TAGLINE_SIZE, TAGLINE_FIRST, TAGLINE_STEP = 34, 246, 42
 SUBTITLE_GAP = 46
 CAPTION_SIZE, CAPTION_BASE = 12.5, 384
-WORDMARK_TRACKING = -0.04
+# Weft has a wide advance (750 units), so the name and the caption are set tighter, as on the site.
+WORDMARK_TRACKING = -0.08
+CAPTION_TRACKING = -0.03
+# The axis values of each text. The name has FRAG 12, as on the site; all other text has FRAG 0.
+NAME_AXES = {"wght": 500, "FRAG": 12}
+CAPTION_AXES = {"wght": 400, "FRAG": 0}
+SANS_AXES = {"wght": 400}
+# The word space of Sans is narrow (170 units); the site and the hero add 0.05 em to it.
+WORD_SPACING = 0.05
 
 
-def load_font(fonts: Path, slug: str, weight: int) -> TTFont:
-    name = f"{slug}-latin-{weight}-normal.woff2"
-    found = sorted(fonts.rglob(name))
-    if not found:
-        raise SystemExit(f"FAIL fonts: {name} is not in {fonts}")
-    return TTFont(found[0])
+Face = tuple[TTFont, dict[str, float]]
 
 
-def outline(font: TTFont, text: str, x: float, baseline: float, size: float, tracking: float = 0.0) -> str:
+def load_font(fonts: Path, slug: str, axes: dict[str, float]) -> Face:
+    path = fonts / f"{slug}.woff2"
+    if not path.is_file():
+        raise SystemExit(f"FAIL fonts: {path.name} is not in {fonts}")
+    font = TTFont(path)
+    ranges = {a.axisTag: (a.minValue, a.maxValue) for a in font["fvar"].axes}
+    for tag, value in axes.items():
+        low, high = ranges.get(tag, (None, None))
+        if low is None or not low <= value <= high:
+            raise SystemExit(f"FAIL fonts: {path.name} has no {tag} {value}")
+    return font, axes
+
+
+def outline(
+    face: Face, text: str, x: float, baseline: float, size: float, tracking: float = 0.0, words: float = 0.0
+) -> str:
     """The outlines of text as one svg path, set from x on the baseline."""
-    glyphs, cmap = font.getGlyphSet(), font.getBestCmap()
+    font, axes = face
+    glyphs, cmap = font.getGlyphSet(location=axes, normalized=False), font.getBestCmap()
     scale = size / font["head"].unitsPerEm
     pen = SVGPathPen(glyphs, ntos=card.num)
     for char in text:
         glyph = glyphs[cmap[ord(char)]]
         glyph.draw(TransformPen(pen, (scale, 0, 0, -scale, x, baseline)))
-        x += glyph.width * scale + tracking * size
+        x += glyph.width * scale + tracking * size + (words * size if char == " " else 0.0)
     return str(pen.getCommands())
 
 
 def profile_svg(mode: card.Mode, site: dict[str, Any], fonts: Path) -> str:
     """The profile hero of one scheme: the header of the site, with the type cut into outlines."""
     name, tagline, subtitle = site["name"], site["tagline"], site["subtitle"]
-    mono500, mono400 = load_font(fonts, "geist-mono", 500), load_font(fonts, "geist-mono", 400)
-    sans = load_font(fonts, "geist", 400)
+    mono500, mono400 = load_font(fonts, "mm-weft", NAME_AXES), load_font(fonts, "mm-weft", CAPTION_AXES)
+    sans = load_font(fonts, "mm-sans", SANS_AXES)
     size = WORDMARK[0]
     mark_size = LOGO
     mark_x = LEFT
@@ -72,10 +92,12 @@ def profile_svg(mode: card.Mode, site: dict[str, Any], fonts: Path) -> str:
     lines = card.sentences(tagline)
     text = outline(mono500, name, word_x, WORDMARK[1], size, WORDMARK_TRACKING)
     text += "".join(
-        outline(sans, line, LEFT, TAGLINE_FIRST + i * TAGLINE_STEP, TAGLINE_SIZE) for i, line in enumerate(lines)
+        outline(sans, line, LEFT, TAGLINE_FIRST + i * TAGLINE_STEP, TAGLINE_SIZE, words=WORD_SPACING)
+        for i, line in enumerate(lines)
     )
-    quiet = outline(sans, subtitle, LEFT, TAGLINE_FIRST + (len(lines) - 1) * TAGLINE_STEP + SUBTITLE_GAP, TAGLINE_SIZE)
-    quiet += outline(mono400, card.CAPTION, LEFT, CAPTION_BASE, CAPTION_SIZE)
+    subtitle_base = TAGLINE_FIRST + (len(lines) - 1) * TAGLINE_STEP + SUBTITLE_GAP
+    quiet = outline(sans, subtitle, LEFT, subtitle_base, TAGLINE_SIZE, words=WORD_SPACING)
+    quiet += outline(mono400, card.CAPTION, LEFT, CAPTION_BASE, CAPTION_SIZE, CAPTION_TRACKING)
     card_d, small, red = card.card_parts(" ".join(lines), card.CARD_X, card.CARD_Y)
     body = "\n".join(
         [

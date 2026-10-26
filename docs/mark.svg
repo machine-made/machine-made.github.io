@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 30" width="30" height="30" role="img">
+<title>machine-made mark</title>
+<style>.k{fill:#000000}.r{fill:#e5251c}@media (prefers-color-scheme:dark){.k{fill:#ffffff}}</style>
+<rect class="k" x="0" y="0" width="8" height="8"/>
+<rect class="k" x="11" y="0" width="8" height="8"/>
+<rect class="k" x="22" y="0" width="8" height="8"/>
+<rect class="k" x="0" y="11" width="8" height="8"/>
+<rect class="r" x="11" y="11" width="8" height="8"/>
+<rect class="k" x="22" y="11" width="8" height="8"/>
+<rect class="k" x="0" y="22" width="8" height="8"/>
+<rect class="k" x="11" y="22" width="8" height="8"/>
+<rect class="k" x="22" y="22" width="8" height="8"/>
+</svg>

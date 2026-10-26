@@ -1,25 +1,42 @@
 # machine-made.github.io
 
-The machine-made website.
+The machine-made website: one page and one `llms.txt`, built from `site.json`.
 
-> **Status: planned, private.** Nothing is built yet. This repo is managed by
-> Jac, the CEO agent of machine-made (`machine-made/jac`). Work starts when Jac
-> opens its first task.
+> **Status: draft, not published.**
 
-## Mission
+## Build
 
-The mm site: a strict Swiss/2001 grid, each project shown with its hero, and the weekly dashboard of what the agents shipped.
+```
+python3 build.py        # writes docs/
+python3 check_site.py   # prints OK, or one line per failure
+sh gate.sh              # build twice and compare, check, search for forbidden words
+python3 shots.py        # screenshots in shots/, light and dark; needs Playwright
+```
 
-## First step
+`build.py` and `check_site.py` use only the Python 3.11 standard library. The build is
+deterministic: the same `site.json` gives the same bytes.
 
-Waits for the mm identity (after Weft's first cut).
+## Files
 
-## Standards
+| Path | Holds |
+| --- | --- |
+| `site.json` | The content: name, line, how we work, public projects, houses |
+| `build.py` | The generator: page, style, mark, `llms.txt`, header weave |
+| `src/style.css` | The style. `build.py` adds the colours and writes `docs/style.css` |
+| `check_site.py` | The checks for the built site |
+| `gate.sh` | The gate |
+| `shots.py` | Screenshots at 1440 px and 375 px, and the scroll check. Writes `shots/` |
+| `DESIGN.md` | The grid, the type, the colour and the weave algorithm |
+| `docs/` | The built site. Do not edit by hand |
 
-Follows the machine-made standards (`machine-made/jac`, `org/STANDARDS.md`):
-C++23 and CUDA 13.3+, Rust 2024 with no unsafe code, Python 3.14+, tests and
-parity before merge, actions pinned to commit SHAs, ASD-STE100 for changelogs,
-comments and errors. Built by agents; no human writes code here.
+## Rules
+
+- The page shows the name, the line, how we work, the public projects and the two houses.
+- Only public repositories are named or linked. A new public project needs an entry in
+  `site.json` and in `PUBLIC_REPOS` in `check_site.py`.
+- `check_site.py --deny FILE`, or `MM_DENY_FILE=FILE sh gate.sh`, also rejects any name listed
+  in FILE. Keep FILE outside this repository.
+- No script, no tracking, no personal names, no costs.
 
 ## Licence
 

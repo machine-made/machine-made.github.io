@@ -24,15 +24,15 @@ deterministic: the same source tree gives the same bytes.
 | Path | Holds |
 | --- | --- |
 | `site.json` | The content: name, line, subtitle line, the three project groups, houses |
-| `card.py` | The punched card: the one identity. Draws the card, the mark and the rows of dots |
-| `build.py` | The generator: page, style, `llms.txt`; uses `card.py` |
+| `card.py` | The marks: the square logo, the punched card of the profile hero and the rows of dots. The palette |
+| `build.py` | The generator: page, style, `llms.txt`, the weave; uses `card.py` |
 | `brand.py` | The GitHub profile hero and the avatar, drawn from `card.py`. Writes `brand/` |
 | `brand/` | The profile hero (light and dark: SVG, PNG, PNG @2x) and `avatar.png`. Do not edit by hand |
 | `src/style.css` | The style. `build.py` adds the colours and writes `docs/style.css` |
 | `check_site.py` | The checks for the built site |
 | `gate.sh` | The gate |
 | `shots.py` | Screenshots at 1440 px and 375 px, the scroll check and the line-length check. Writes `shots/` |
-| `DESIGN.md` | The grid, the type, the colour and the card |
+| `DESIGN.md` | The grid, the type, the colour, the mark, the weave and the rows of dots |
 | `docs/` | The built site. Do not edit by hand |
 
 ## Rules

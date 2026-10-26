@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The profile hero and the avatar, drawn from card.py, the module that draws the website.
+"""The profile hero and the avatar, drawn from card.py, the module that draws the logo and the cards of the website.
 
 Usage: python3 brand.py --fonts DIR [--out DIR]
 --fonts  a folder of Geist woff2 files (names like geist-latin-400-normal.woff2). Needed. The
@@ -27,10 +27,11 @@ import card
 ROOT = Path(__file__).resolve().parent
 PNG_KEEP = {b"IHDR", b"PLTE", b"IDAT", b"IEND"}
 AVATAR = 1024
-AVATAR_SCALE = 19
+AVATAR_LOGO = 660
 # The header of the site, drawn in the frame. Sizes and baselines are in frame pixels.
 LEFT = 64
 WORDMARK = (48, 168)
+LOGO = 34
 TAGLINE_SIZE, TAGLINE_FIRST, TAGLINE_STEP = 34, 246, 42
 SUBTITLE_GAP = 46
 CAPTION_SIZE, CAPTION_BASE = 12.5, 384
@@ -63,10 +64,10 @@ def profile_svg(mode: card.Mode, site: dict[str, Any], fonts: Path) -> str:
     mono500, mono400 = load_font(fonts, "geist-mono", 500), load_font(fonts, "geist-mono", 400)
     sans = load_font(fonts, "geist", 400)
     size = WORDMARK[0]
-    mark_size = card.MARK_SIZE
+    mark_size = LOGO
     mark_x = LEFT
     mark_y = WORDMARK[1] - mark_size
-    mark_card, mark_red = card.mark_parts(mark_x, mark_y, mark_size)
+    mark_dark, mark_red = card.mark_parts(mark_x, mark_y, mark_size)
     word_x = mark_x + mark_size + 0.33 * size
     lines = card.sentences(tagline)
     text = outline(mono500, name, word_x, WORDMARK[1], size, WORDMARK_TRACKING)
@@ -79,7 +80,7 @@ def profile_svg(mode: card.Mode, site: dict[str, Any], fonts: Path) -> str:
     body = "\n".join(
         [
             f'<rect class="g" width="{card.FRAME_W}" height="{card.FRAME_H}"/>',
-            f'<path class="k" fill-rule="evenodd" d="{mark_card}"/>',
+            f'<path class="k" d="{mark_dark}"/>',
             f'<path class="r" d="{mark_red}"/>',
             f'<path class="k" d="{text}"/>',
             f'<path class="m" d="{quiet}"/>',
@@ -94,14 +95,13 @@ def profile_svg(mode: card.Mode, site: dict[str, Any], fonts: Path) -> str:
 
 
 def avatar_svg() -> str:
-    """The mark alone, centred on white, with about 18% of the width as padding."""
-    size = card.MARK_SIZE * AVATAR_SCALE
-    origin = (AVATAR - size) / 2
-    mark_card, mark_red = card.mark_parts(origin, origin, size)
+    """The logo alone, centred on white, with about 18% of the width as padding."""
+    origin = (AVATAR - AVATAR_LOGO) / 2
+    mark_dark, mark_red = card.mark_parts(origin, origin, AVATAR_LOGO)
     style = card.fixed("light", {"g": "bg", "k": "fg"})
     body = (
         f'<rect class="g" width="{AVATAR}" height="{AVATAR}"/>\n'
-        f'<path class="k" fill-rule="evenodd" d="{mark_card}"/>\n<path class="r" d="{mark_red}"/>'
+        f'<path class="k" d="{mark_dark}"/>\n<path class="r" d="{mark_red}"/>'
     )
     return card.svg(str(AVATAR), str(AVATAR), f"0 0 {AVATAR} {AVATAR}", "machine-made avatar", style, body)
 

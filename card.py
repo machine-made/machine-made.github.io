@@ -1,8 +1,10 @@
-"""The punched card: the one identity of machine-made. Standard library only.
+"""The marks of machine-made: the square logo and the punched card. Standard library only.
 
 The website (build.py), the profile hero and the avatar (brand.py) all draw from this module,
-so they match. A card holds one column per character and seven rows. A big dot is a 1 bit, a
-small dot is a 0 bit, and the top row is the high bit of the 7-bit ASCII code. One dot is red.
+so they match. The logo is a 3 by 3 grid of squares with a red centre. The punched card is a
+detail: a card holds one column per character and seven rows, a big dot is a 1 bit, a small dot
+is a 0 bit, the top row is the high bit of the 7-bit ASCII code, and one dot is red. A row of
+dots on a thin strip is the same code, used as a rule between sections.
 """
 
 import re
@@ -17,6 +19,8 @@ MODES: dict[str, dict[str, str]] = {
         "muted": "#595959",
         "rule": "#d9d9d9",
         "dot": "#3a3a3a",
+        "warp": "#000000",
+        "weft": "#bdbdbd",
     },
     "dark": {
         "bg": "#000000",
@@ -24,6 +28,8 @@ MODES: dict[str, dict[str, str]] = {
         "muted": "#a6a6a6",
         "rule": "#2e2e2e",
         "dot": "#c8c8c8",
+        "warp": "#ffffff",
+        "weft": "#383838",
     },
 }
 RED = "#e5251c"
@@ -39,17 +45,13 @@ BIG_R = 0.3 * PITCH_X
 SMALL = 2.63
 ROWS = 7
 
-MARK_SIZE = 34
-MARK_CUT = 8.5
-MARK_PITCH = 8.5
-MARK_R = MARK_PITCH / 3
+MARK_SIZE, MARK_CELL, MARK_GAP = 30, 8, 3
 
 RULE_PITCH = 8
 RULE_BIG_R = 2.2
 RULE_SMALL = 1.2
 
 CAPTION = "The card: the line above in 7-bit ASCII."
-CAPTION_NARROW = "The card: the first line above in 7-bit ASCII."
 
 
 def num(value: float) -> str:
@@ -103,23 +105,23 @@ def card_parts(text: str, ox: float, oy: float) -> tuple[str, str, str]:
     return card, small, red
 
 
+def mark_cells() -> list[tuple[bool, int, int]]:
+    """The nine squares of the logo as (is red, x, y) in a 30 by 30 box. The centre is red."""
+    step = MARK_CELL + MARK_GAP
+    return [((row, col) == (1, 1), col * step, row * step) for row in range(3) for col in range(3)]
+
+
 def mark_parts(ox: float, oy: float, size: float) -> tuple[str, str]:
-    """The mark: a small notched card with a 3 by 3 grid of holes. Returns the card with its
-    holes and the red dot, which fills the lower right hole."""
+    """The logo as paths at (ox, oy), size px wide: the eight dark squares and the red one."""
     k = size / MARK_SIZE
-    cut = MARK_CUT * k
-    card = (
-        f"M{num(ox + cut)} {num(oy)}H{num(ox + size)}V{num(oy + size)}H{num(ox)}V{num(oy + cut)}Z"
-    )
-    red = ""
-    for row in range(3):
-        for col in range(3):
-            cx = ox + (MARK_PITCH + col * MARK_PITCH) * k
-            cy = oy + (MARK_PITCH + row * MARK_PITCH) * k
-            card += circle(cx, cy, MARK_R * k)
-            if (row, col) == (2, 2):
-                red = circle(cx, cy, MARK_R * k)
-    return card, red
+    dark, red = "", ""
+    for is_red, x, y in mark_cells():
+        box = f"M{num(ox + x * k)} {num(oy + y * k)}h{num(MARK_CELL * k)}v{num(MARK_CELL * k)}h-{num(MARK_CELL * k)}Z"
+        if is_red:
+            red = box
+        else:
+            dark += box
+    return dark, red
 
 
 def themed(rules: dict[str, str], red: bool = True) -> str:
@@ -143,26 +145,13 @@ def svg(width: str, height: str, view: str, title: str, style: str, body: str) -
     )
 
 
-def card_svg(text: str, framed: bool) -> str:
-    """The card on a transparent ground. framed puts it in the 1408 by 469 frame of the header
-    and the profile hero; otherwise the view fits the card."""
-    ox, oy = (CARD_X, CARD_Y) if framed else (0, 0)
-    card, small, red = card_parts(text, ox, oy)
-    width = card_width(len(text))
-    view = f"0 0 {FRAME_W} {FRAME_H}" if framed else f"0 0 {num(width)} {CARD_H}"
-    size = (str(FRAME_W), str(FRAME_H)) if framed else (num(width), str(CARD_H))
-    body = (
-        f'<path class="c" fill-rule="evenodd" d="{card}"/>\n'
-        f'<path class="d" d="{small}"/>\n<path class="r" d="{red}"/>'
-    )
-    return svg(*size, view, f"Punched card: {text}", themed({"c": "fg", "d": "dot"}), body)
-
-
 def mark_svg() -> str:
-    card, red = mark_parts(0, 0, MARK_SIZE)
-    body = f'<path class="k" fill-rule="evenodd" d="{card}"/>\n<path class="r" d="{red}"/>'
+    squares = [
+        f'<rect class="{"r" if is_red else "k"}" x="{x}" y="{y}" width="{MARK_CELL}" height="{MARK_CELL}"/>'
+        for is_red, x, y in mark_cells()
+    ]
     size = str(MARK_SIZE)
-    return svg(size, size, f"0 0 {size} {size}", "machine-made mark", themed({"k": "fg"}), body)
+    return svg(size, size, f"0 0 {size} {size}", "machine-made mark", themed({"k": "fg"}), "\n".join(squares))
 
 
 def rule_size(text: str) -> tuple[int, int]:

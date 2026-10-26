@@ -42,7 +42,11 @@ HOUSE_URLS = ("https://github.com/openfluids", "https://github.com/BoringQuantSy
 TAGLINE = "Made by machines. Proven for machines."
 SUBTITLE = "A lab run by machines."
 FOOTER = "Made by agents. Directed by a person, in spare time."
-BASE_FILES = {"index.html", "style.css", "mark.svg", "llms.txt"}
+BASE_FILES = {"index.html", "style.css", "mark.svg", "llms.txt", "card.svg", "card-narrow.svg"}
+CAPTION = "The card: the line above in 7-bit ASCII."
+CAPTION_NARROW = "The card: the first line above in 7-bit ASCII."
+RULE_PITCH = 8
+CARD_ROWS = 7
 FILE_NAME = re.compile(r"[a-z0-9][a-z0-9._-]*")
 FONT_HOSTS = ("fonts.googleapis.com", "fonts.gstatic.com")
 FRAME = (1408, 469)
@@ -280,8 +284,18 @@ def read(rel: str) -> str:
     return path.read_text(encoding="utf-8", errors="replace")
 
 
-def check_files(hero_rel: str | None) -> None:
-    wanted = BASE_FILES | ({hero_rel} if hero_rel else set())
+def slug(title: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
+
+
+def rule_titles(name: str | None) -> list[str]:
+    """The text that each decorative row of dots must encode, in page order: the group titles,
+    Houses, and the site name for the footer."""
+    return [title for title, _ in GROUPS] + ["Houses"] + ([name] if name else [])
+
+
+def check_files(name: str | None) -> None:
+    wanted = BASE_FILES | {f"rules/{slug(title)}.svg" for title in rule_titles(name)}
     present = {p.relative_to(DOCS).as_posix() for p in DOCS.rglob("*") if p.is_file()}
     for extra in sorted(present - wanted):
         fail("files", f"docs/{extra} is not part of the one-page site")
@@ -299,7 +313,7 @@ def local_target(href: str) -> Path | None:
     return target if root in target.parents else None
 
 
-def check_html(page: Page, html_text: str, name: str | None, hero_rel: str | None) -> None:
+def check_html(page: Page, html_text: str, name: str | None) -> None:
     for problem in page.problems:
         fail("parse", problem)
     if page.stack:
@@ -335,14 +349,17 @@ def check_html(page: Page, html_text: str, name: str | None, hero_rel: str | Non
         fail("semantic", "the page needs exactly one main")
     if name and ("h1", name) not in page.headings:
         fail("content", f"the h1 must be the site name, {name}")
-    if hero_rel and not any(img.get("src") == hero_rel for img in page.imgs):
-        fail("hero", f"the header must show {hero_rel}")
+    shown = {img.get("src") for img in page.imgs}
+    for hero in ("card.svg", "card-narrow.svg"):
+        if hero not in shown:
+            fail("hero", f"the header must show {hero}")
     first: Attrs = page.first_link or {}
     if first.get("href") != "#main" or "main" not in page.ids:
         fail("a11y", "the first link must be a skip link to #main")
     for img in page.imgs:
-        if not (img.get("alt") or "").strip():
-            fail("a11y", f"image {img.get('src')} has no alt text")
+        decorative = img.get("alt") == "" and img.get("aria-hidden") == "true"
+        if not decorative and not (img.get("alt") or "").strip():
+            fail("a11y", f"image {img.get('src')} has no alt text and is not marked aria-hidden")
         if not (img.get("width") and img.get("height")):
             fail("responsive", f"image {img.get('src')} has no width and height")
         target = local_target(img.get("src") or "")
@@ -444,6 +461,14 @@ def check_content(page: Page, html_text: str) -> str:
     for repo, url in SITE_LINKS.items():
         if not re.search(rf'<a href="https://github.com/{OWNER}/{repo}">{repo}</a><p>[^<]*<a class="site" href="{re.escape(url)}">site</a></p>', html_text):
             fail("projects", f"{repo} needs a second link labelled site to {url}")
+    for title in [t for t, _ in GROUPS] + ["Houses"]:
+        if f'aria-labelledby="{slug(title)}">\n<img class="punch" src="rules/{slug(title)}.svg"' not in html_text:
+            fail("hero", f"the section {title} must open with its row of dots, rules/{slug(title)}.svg")
+    if not re.search(r'<footer class="section">\n<img class="punch" src="rules/[a-z0-9-]+\.svg"', html_text):
+        fail("hero", "the footer must open with a row of dots")
+    caption = f'<p class="caption"><span class="wide">{CAPTION}</span><span class="narrow">{CAPTION_NARROW}</span></p>'
+    if caption not in html_text:
+        fail("content", "the caption under the card is missing or changed")
     check_prose(page.paragraphs, "index.html")
     return " ".join([text] + page.values + page.hidden + page.tags)
 
@@ -590,12 +615,6 @@ def check_css() -> None:
         fail("responsive", "style.css forces a width that can scroll")
 
 
-def rects_of(d: str) -> Iterator[tuple[int, int, int, int]]:
-    for m in re.finditer(r"M(-?\d+) (-?\d+)h(\d+)v(\d+)h-\d+z", d):
-        x, y, w, h = (int(g) for g in m.groups())
-        yield x, y, w, h
-
-
 def refuse_name(name: str, where: str) -> None:
     fail(
         "accent",
@@ -685,9 +704,81 @@ def check_svg_safety(tree: ET.Element, where: str) -> None:
             check_refs(value, where, "svg")
 
 
-def check_svgs(hero_rel: str | None) -> None:
-    trees: dict[str, ET.Element] = {}
-    for rel in ["mark.svg"] + ([hero_rel] if hero_rel else []):
+Dot = tuple[float, float, int]
+BIG_DOT = re.compile(r"M(-?[\d.]+) (-?[\d.]+)a([\d.]+) [\d.]+ 0 1 0 [\d.]+ 0")
+SMALL_DOT = re.compile(r"M(-?[\d.]+) (-?[\d.]+)h([\d.]+)v")
+
+
+def dots_of(tree: ET.Element, classes: tuple[str, ...]) -> list[Dot]:
+    """Centre and bit of every dot in the paths of these classes. A big dot is a 1, a small one a 0."""
+    found: list[Dot] = []
+    for el in tree.iter():
+        if el.tag.rsplit("}", 1)[-1] == "path" and el.get("class") in classes:
+            d = el.get("d", "")
+            found += [(float(x) + float(r), float(y), 1) for x, y, r in BIG_DOT.findall(d)]
+            found += [(float(x) + float(s) / 2, float(y) + float(s) / 2, 0) for x, y, s in SMALL_DOT.findall(d)]
+    return found
+
+
+def clusters(values: list[float]) -> list[float]:
+    """The distinct positions in values; two within 3 units are one."""
+    out: list[float] = []
+    for value in sorted(values):
+        if not out or value - out[-1] > 3:
+            out.append(value)
+    return out
+
+
+def nearest(positions: list[float], value: float) -> int:
+    return min(range(len(positions)), key=lambda i: abs(positions[i] - value))
+
+
+def decode_card(tree: ET.Element) -> str | None:
+    """The text a card encodes, read from the dots alone. None when the grid is not whole."""
+    dots = dots_of(tree, ("c", "d"))
+    cols, rows = clusters([x for x, _, _ in dots]), clusters([y for _, y, _ in dots])
+    if len(rows) != CARD_ROWS or len(dots) != len(cols) * CARD_ROWS:
+        return None
+    grid: dict[tuple[int, int], int] = {}
+    for x, y, bit in dots:
+        grid[(nearest(cols, x), nearest(rows, y))] = bit
+    if len(grid) != len(dots):
+        return None
+    codes = [sum(grid[(col, row)] << (CARD_ROWS - 1 - row) for row in range(CARD_ROWS)) for col in range(len(cols))]
+    return "".join(chr(code) for code in codes) if all(32 <= code < 127 for code in codes) else None
+
+
+def decode_rule(tree: ET.Element) -> str | None:
+    """The text a row of dots encodes: 7 slots per character, one empty slot between characters."""
+    dots = dots_of(tree, ("d",))
+    slots = {int(x // RULE_PITCH): bit for x, _, bit in dots}
+    if not slots or len(slots) != len(dots):
+        return None
+    count = (max(slots) + 2) // RULE_PITCH
+    expected = {RULE_PITCH * i + j for i in range(count) for j in range(CARD_ROWS)}
+    if set(slots) != expected:
+        return None
+    codes = [sum(slots[RULE_PITCH * i + j] << (CARD_ROWS - 1 - j) for j in range(CARD_ROWS)) for i in range(count)]
+    return "".join(chr(code) for code in codes) if all(32 <= code < 127 for code in codes) else None
+
+
+def check_card(tree: ET.Element, rel: str, text: str, framed: bool) -> None:
+    if framed and tree.get("viewBox") != f"0 0 {FRAME[0]} {FRAME[1]}":
+        fail("hero", f"{rel} viewBox is not 0 0 {FRAME[0]} {FRAME[1]}")
+    if decode_card(tree) != text:
+        fail("hero", f"{rel} does not encode {text!r} in 7-bit ASCII")
+    reds = [el for el in tree.iter() if el.tag.rsplit("}", 1)[-1] == "path" and el.get("class") == "r"]
+    red_dots = dots_of(tree, ("r",)) if len(reds) == 1 else []
+    big = {(round(x, 1), round(y, 1)) for x, y, bit in dots_of(tree, ("c",)) if bit}
+    last = max((x for x, _, _ in dots_of(tree, ("c", "d"))), default=0.0)
+    if len(red_dots) != 1 or (round(red_dots[0][0], 1), round(red_dots[0][1], 1)) not in big or abs(red_dots[0][0] - last) > 1:
+        fail("hero", f"{rel} needs exactly one red dot, on a 1 bit in the last column")
+
+
+def check_svgs(name: str | None) -> None:
+    cards = {"card.svg": (TAGLINE, True), "card-narrow.svg": (sentences_of(TAGLINE)[0], False)}
+    rules = {f"rules/{slug(title)}.svg": title for title in rule_titles(name)}
+    for rel in ["mark.svg", *cards, *rules]:
         text = read(rel)
         if not text:
             continue
@@ -696,37 +787,18 @@ def check_svgs(hero_rel: str | None) -> None:
         except ET.ParseError as exc:
             fail("parse", f"{rel} is not valid XML: {exc}")
             continue
-        trees[rel] = tree
         check_svg_safety(tree, rel)
         accents = split_accent(svg_colours(tree, rel))
+        if rel in rules:
+            if accents:
+                fail("accent", f"{rel} is quiet and must not use an accent; found {sorted(accents)}")
+            if decode_rule(tree) != rules[rel]:
+                fail("rules", f"{rel} does not encode {rules[rel]!r} in 7-bit ASCII")
+            continue
         if accents != {"#e5251c"}:
             fail("accent", f"{rel} needs exactly one accent colour; found {sorted(accents)}")
-    hero_tree = trees.get(hero_rel) if hero_rel else None
-    if hero_tree is None:
-        return
-    tree = hero_tree
-    if tree.get("viewBox") != f"0 0 {FRAME[0]} {FRAME[1]}":
-        fail("hero", f"the hero viewBox is not 0 0 {FRAME[0]} {FRAME[1]}")
-    ns = "{http://www.w3.org/2000/svg}"
-    third = FRAME[0] / 3
-    reds = [e for e in tree.iter(f"{ns}path") if e.get("class") == "r"]
-    if len(reds) != 1 or len(list(tree.iter(f"{ns}g"))) != 1:
-        fail("hero", "the hero needs exactly one red cell")
-    least = FRAME[0]
-    for path in tree.iter(f"{ns}path"):
-        if path.get("fill", "").startswith("url(#"):
-            for x, _, _, _ in rects_of(path.get("d", "")):
-                least = min(least, x)
-    for g in tree.iter(f"{ns}g"):
-        m = re.fullmatch(r"translate\((\d+) (\d+)\)", g.get("transform", ""))
-        if not m:
-            fail("hero", "the red group has an unexpected transform")
-            continue
-        for path in g.iter(f"{ns}path"):
-            for x, _, _, _ in rects_of(path.get("d", "")):
-                least = min(least, int(m.group(1)) + x)
-    if least < third:
-        fail("hero", f"the weave starts at x={least}, inside the left third (x<{third:.0f})")
+        if rel in cards:
+            check_card(tree, rel, cards[rel][0], cards[rel][1])
 
 
 def check_llms(name: str | None) -> None:
@@ -778,19 +850,18 @@ def load_deny(path: str | None) -> list[str]:
 def run_checks(deny: list[str]) -> list[str]:
     del failures[:]
     name = site_name()
-    hero_rel = f"heroes/{name}.svg" if name else None
-    check_files(hero_rel)
+    check_files(name)
     html_text = read("index.html")
     if html_text:
         page = Page()
         page.feed(html_text)
         page.close()
-        check_html(page, html_text, name, hero_rel)
+        check_html(page, html_text, name)
         visible = check_content(page, html_text)
         check_leaks(visible, deny)
     check_forbidden()
     check_css()
-    check_svgs(hero_rel)
+    check_svgs(name)
     check_llms(name)
     return list(failures)
 
@@ -812,19 +883,23 @@ def edit_all(docs: Path, name: str, *pairs: tuple[str, str]) -> None:
         edit(docs, name, old, new)
 
 
-def move_weave(docs: Path, hero: str) -> None:
-    path = docs / hero
+def flip_first_dot(docs: Path, rel: str) -> None:
+    """Turn the first big dot of an svg into a small one: one bit flipped."""
+    path = docs / rel
     text = path.read_text(encoding="utf-8")
-    moved = re.sub(r'(fill="url\(#p\d\)" d="M)\d+', r"\g<1>100", text, count=1)
-    if moved == text:
-        raise AssertionError("self-test is stale: no weave mask found in the hero")
-    path.write_text(moved, encoding="utf-8")
+    hit = BIG_DOT.search(text)
+    if hit is None:
+        raise AssertionError(f"self-test is stale: no big dot in docs/{rel}")
+    x, y, r = float(hit.group(1)), float(hit.group(2)), float(hit.group(3))
+    end = text.index("Z", hit.end()) + 1
+    square = f"M{x + r - 1:.2f} {y - 1:.2f}h2v2h-2Z"
+    path.write_text(text[: hit.start()] + square + text[end:], encoding="utf-8")
 
 
 def site_copy(root: Path, changes: dict[str, object]) -> subprocess.CompletedProcess[bytes]:
     """Build a copy of the generator in root, with these keys of site.json changed."""
     (root / "src").mkdir(parents=True)
-    for rel in ("build.py", "src/style.css"):
+    for rel in ("build.py", "card.py", "src/style.css"):
         shutil.copy(ROOT / rel, root / rel)
     data = json.loads((ROOT / "site.json").read_text(encoding="utf-8"))
     data.update(changes)
@@ -890,8 +965,8 @@ def self_test() -> None:
     if not name:
         print("\n".join(failures))
         sys.exit(1)
-    hero = f"heroes/{name}.svg"
-    alt = f'alt="Weave pattern generated from the name {name}"'
+    hero = "card.svg"
+    alt = f'alt="Mark of {name}: a small punched card with three by three holes, one of them red"'
     cases: list[Case] = [
         ("private name in style.css", "private", ["zzprivate"], lambda d: edit(d, "style.css", "box-sizing", "/* zzprivate */ box-sizing")),
         ("private name in the hero svg", "private", ["zzprivate"], lambda d: edit(d, hero, "<title>", "<title>zzprivate ")),
@@ -918,7 +993,21 @@ def self_test() -> None:
         ("image without alt", "a11y", [], lambda d: edit(d, "index.html", alt, 'alt=" "')),
         ("money amount", "forbidden", [], lambda d: edit(d, "llms.txt", "## Houses", "$5\n\n## Houses")),
         ("second page", "files", [], lambda d: (d / "second.html").write_text("<!doctype html>")),
-        ("weave inside the left third", "hero", [], lambda d: move_weave(d, hero)),
+        ("a bit of the card is flipped", "hero", [], lambda d: flip_first_dot(d, hero)),
+        ("a bit of the narrow card is flipped", "hero", [], lambda d: flip_first_dot(d, "card-narrow.svg")),
+        ("a dot is missing from the card", "hero", [], lambda d: edit(d, hero, "M573.35 138.05a5.98 5.98 0 1 0 11.95 0a5.98 5.98 0 1 0 -11.95 0Z", "")),
+        ("the card has the wrong frame", "hero", [], lambda d: edit(d, hero, 'viewBox="0 0 1408 469"', 'viewBox="0 0 1408 470"')),
+        ("the red dot is off a hole", "hero", [], lambda d: edit(d, hero, '<path class="r" d="M1290.62 298.8', '<path class="r" d="M1290.62 299.8')),
+        ("the red dot is not in the last column", "hero", [], lambda d: edit(d, hero, '<path class="r" d="M1290.62 298.8', '<path class="r" d="M553.42 138.05')),
+        ("the red dot is missing", "hero", [], lambda d: edit(d, hero, '<path class="r" d="M1290.62 298.8a5.98 5.98 0 1 0 11.95 0a5.98 5.98 0 1 0 -11.95 0Z"/>', "")),
+        ("a row of dots encodes another title", "rules", [], lambda d: flip_first_dot(d, "rules/houses.svg")),
+        ("a row of dots uses the accent", "accent", [], lambda d: edit(d, "rules/houses.svg", "<style>", "<style>.d{fill:#e5251c}")),
+        ("a row of dots is missing", "files", [], lambda d: (d / "rules" / "houses.svg").unlink()),
+        ("a row of dots is extra", "files", [], lambda d: (d / "rules" / "extra.svg").write_text("<svg/>")),
+        ("a row of dots without aria-hidden", "a11y", [], lambda d: edit(d, "index.html", 'alt="" aria-hidden="true"', 'alt=""')),
+        ("a section without its row of dots", "hero", [], lambda d: edit(d, "index.html", '<img class="punch" src="rules/houses.svg" width="376" height="8" alt="" aria-hidden="true">\n', "")),
+        ("the caption changes", "content", [], lambda d: edit(d, "index.html", "the line above", "the line below")),
+        ("the narrow card is not shown", "hero", [], lambda d: edit(d, "index.html", 'src="card-narrow.svg"', 'src="card.svg"')),
         ("hero file is not valid XML", "parse", [], lambda d: (d / hero).write_text("<svg", encoding="utf-8")),
         ("header shows another image", "hero", [], lambda d: edit(d, "index.html", f'src="{hero}"', 'src="mark.svg"')),
         ("hero file missing", "files", [], lambda d: (d / hero).unlink()),
@@ -938,12 +1027,12 @@ def self_test() -> None:
         ("site link missing", "links", [], lambda d: edit(d, "index.html", ' <a class="site" href="https://machine-made.github.io/chaos-atlas/">site</a>', "")),
         ("site link on another host", "links", [], lambda d: edit(d, "index.html", "https://machine-made.github.io/chaos-atlas/", "https://example.net/chaos-atlas/")),
         ("site link to another path", "links", [], lambda d: edit(d, "index.html", "https://machine-made.github.io/chaos-atlas/", "https://machine-made.github.io/other/")),
-        ("accent in a fill attribute", "accent", [], lambda d: edit(d, hero, '<rect class="g"', '<rect fill="#0000ff" class="g"')),
-        ("accent in a style attribute", "accent", [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<rect style="fill:#00f" class="k"')),
-        ("accent in stop-color", "accent", [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<rect stop-color="#00ff00" class="k"')),
-        ("named colour in a stroke", "accent", [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<rect stroke="red" class="k"')),
+        ("accent in a fill attribute", "accent", [], lambda d: edit(d, hero, '<path class="d"', '<path fill="#0000ff" class="d"')),
+        ("accent in a style attribute", "accent", [], lambda d: edit(d, "mark.svg", '<path class="k"', '<path style="fill:#00f" class="k"')),
+        ("accent in stop-color", "accent", [], lambda d: edit(d, "mark.svg", '<path class="k"', '<path stop-color="#00ff00" class="k"')),
+        ("named colour in a stroke", "accent", [], lambda d: edit(d, "mark.svg", '<path class="k"', '<path stroke="red" class="k"')),
         ("named colour in an svg rule", "accent", [], lambda d: edit(d, "mark.svg", ".k{fill:", ".k{stroke:red;fill:")),
-        ("gradient in the hero", "colour", [], lambda d: edit(d, hero, "<defs>", '<defs><linearGradient id="z"/>')),
+        ("gradient in the hero", "colour", [], lambda d: edit(d, hero, "<style>", '<linearGradient id="z"/><style>')),
         ("private name in a class value", "private", ["zzprivate"], lambda d: edit(d, "index.html", '<main id="main">', '<main id="main" class="zzprivate">')),
         ("private name in an id value", "private", ["zzprivate"], lambda d: edit(d, "index.html", 'id="houses"', 'id="zzprivate"')),
         ("unknown attribute", "attrs", [], lambda d: edit(d, "index.html", '<main id="main">', '<main id="main" data-x="1">')),
@@ -954,8 +1043,8 @@ def self_test() -> None:
         ("css data url", "links", [], lambda d: edit(d, "style.css", ":root{", "a{background:url(data:image/png;base64,AAAA)}:root{")),
         ("css uses a font host and a local file", None, [], lambda d: edit(d, "style.css", ":root{", '@import url("https://fonts.googleapis.com/css2?family=Geist");a{list-style-image:url(mark.svg)}:root{')),
         ("script in the hero svg", "no-js", [], lambda d: edit(d, hero, "<title>", "<script>1</script><title>")),
-        ("event handler in the mark svg", "no-js", [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<rect onclick="x()" class="k"')),
-        ("external href in the hero svg", "links", [], lambda d: edit(d, hero, "<defs>", '<defs><use href="https://example.net/x.svg#a"/>')),
+        ("event handler in the mark svg", "no-js", [], lambda d: edit(d, "mark.svg", '<path class="k"', '<path onclick="x()" class="k"')),
+        ("external href in the hero svg", "links", [], lambda d: edit(d, hero, "<style>", '<use href="https://example.net/x.svg#a"/><style>')),
         ("remote url in an svg rule", "links", [], lambda d: edit(d, hero, "<style>", "<style>.z{fill:url(https://example.net/x.svg#a)}")),
         ("css image-set", "links", [], lambda d: edit(d, "style.css", ":root{", 'a{background:image-set("mark.svg" 1x)}:root{')),
         ("css image()", "links", [], lambda d: edit(d, "style.css", ":root{", 'a{background:image("mark.svg")}:root{')),
@@ -974,10 +1063,10 @@ def self_test() -> None:
         ("a class with a colour name is not a colour", None, [], lambda d: edit(d, "style.css", ":root{", ".red:hover{margin:0}a:not(.tan){margin:0}:root{")),
         ("named colour in a page style block", "accent", [], lambda d: edit(d, "index.html", "<body>", "<body><style>a{color:red}</style>")),
         ("hex accent in a page style block", "accent", [], lambda d: edit(d, "index.html", "<body>", "<body><style>a{color:#00f}</style>")),
-        ("accent as the fallback of a fragment paint", "accent", [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<rect fill="url(#a) #0000ff" class="k"')),
-        ("named fallback of a fragment paint", "accent", [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<rect fill="url(#a) red" class="k"')),
-        ("function fallback of a fragment paint", "colour", [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<rect fill="url(#a) rgb(0,0,255)" class="k"')),
-        ("keyword fallback of a fragment paint", None, [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<rect fill="url(#a) currentColor" class="k"')),
+        ("accent as the fallback of a fragment paint", "accent", [], lambda d: edit(d, "mark.svg", '<path class="k"', '<path fill="url(#a) #0000ff" class="k"')),
+        ("named fallback of a fragment paint", "accent", [], lambda d: edit(d, "mark.svg", '<path class="k"', '<path fill="url(#a) red" class="k"')),
+        ("function fallback of a fragment paint", "colour", [], lambda d: edit(d, "mark.svg", '<path class="k"', '<path fill="url(#a) rgb(0,0,255)" class="k"')),
+        ("keyword fallback of a fragment paint", None, [], lambda d: edit(d, "mark.svg", '<path class="k"', '<path fill="url(#a) currentColor" class="k"')),
         ("text colour as a hex grey", "contrast", [], lambda d: edit(d, "style.css", "box-sizing", "color:#777;box-sizing")),
         ("text colour from a low-contrast token", "contrast", [], lambda d: edit(d, "style.css", "box-sizing", "color:var(--rule);box-sizing")),
         ("text on a low-contrast background token", "contrast", [], lambda d: edit(d, "style.css", "box-sizing", "color:var(--fg);background:var(--muted);box-sizing")),
@@ -988,13 +1077,13 @@ def self_test() -> None:
         ("upper-case gradient", "colour", [], lambda d: edit(d, "style.css", "box-sizing", "background:LINEAR-GRADIENT(red,blue);box-sizing")),
         ("base tag", "no-js", [], lambda d: edit(d, "index.html", "<body>", '<body><base href="https://example.net/">')),
         ("private name as a character reference in the hero", "private", ["zzprivate"], lambda d: edit(d, hero, "<title>", "<title>zz&#x70;rivate ")),
-        ("private name as a nested reference in an attribute", "private", ["zzprivate"], lambda d: edit(d, "mark.svg", '<rect class="k"', '<rect id="zz&amp;#112;rivate" class="k"')),
+        ("private name as a nested reference in an attribute", "private", ["zzprivate"], lambda d: edit(d, "mark.svg", '<path class="k"', '<path id="zz&amp;#112;rivate" class="k"')),
         ("private repo as a character reference in the hero", "private", [], lambda d: edit(d, hero, "<title>", "<title>github.com/&#x6d;achine-made/zzprivate ")),
-        ("remote url in a filter attribute", "links", [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<rect filter="url(https://example.net/x.svg#f)" class="k"')),
-        ("remote url in a mask attribute", "links", [], lambda d: edit(d, hero, '<rect class="g"', '<rect mask="url(//example.net/x.svg#m)" class="g"')),
-        ("remote url in a clip-path attribute", "links", [], lambda d: edit(d, hero, '<rect class="g"', '<rect clip-path="url(x.svg#c)" class="g"')),
-        ("remote url in a fill attribute", "links", [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<rect fill="url(https://example.net/x.svg#f)" class="k"')),
-        ("local fragment in a filter attribute", None, [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<rect filter="url(#f)" class="k"')),
+        ("remote url in a filter attribute", "links", [], lambda d: edit(d, "mark.svg", '<path class="k"', '<path filter="url(https://example.net/x.svg#f)" class="k"')),
+        ("remote url in a mask attribute", "links", [], lambda d: edit(d, hero, '<path class="d"', '<path mask="url(//example.net/x.svg#m)" class="d"')),
+        ("remote url in a clip-path attribute", "links", [], lambda d: edit(d, hero, '<path class="d"', '<path clip-path="url(x.svg#c)" class="d"')),
+        ("remote url in a fill attribute", "links", [], lambda d: edit(d, "mark.svg", '<path class="k"', '<path fill="url(https://example.net/x.svg#f)" class="k"')),
+        ("local fragment in a filter attribute", None, [], lambda d: edit(d, "mark.svg", '<path class="k"', '<path filter="url(#f)" class="k"')),
         ("USD before an amount", "forbidden", [], lambda d: edit(d, "llms.txt", "## Houses", "USD 5\n\n## Houses")),
         ("CHF before an amount", "forbidden", [], lambda d: edit(d, "llms.txt", "## Houses", "chf 5\n\n## Houses")),
         ("EUR before an amount", "forbidden", [], lambda d: edit(d, "llms.txt", "## Houses", "Eur5\n\n## Houses")),

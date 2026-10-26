@@ -1,44 +1,76 @@
 {
   "name": "machine-made",
   "tagline": "Made by machines. Proven for machines.",
+  "hobby": "A hobby: side projects, made in spare time.",
   "owner": "machine-made",
-  "principles": [
-    "A port ships a machine-checked report that it matches its original.",
-    "A tool takes JSON in, gives JSON out, uses stable exit codes and says what to do next when it fails.",
-    "A benchmark has a script and a claim has a test."
-  ],
-  "projects": [
+  "groups": [
     {
-      "repo": "minuit2-rs",
-      "line": "Pure Rust port of CERN ROOT Minuit2, checked against ROOT"
+      "title": "Science and numerics",
+      "projects": [
+        {
+          "repo": "minuit2-rs",
+          "line": "Pure Rust port of CERN ROOT Minuit2, checked against ROOT"
+        },
+        {
+          "repo": "libsvm-rs",
+          "line": "Pure Rust LIBSVM, checked against the C++ original"
+        },
+        {
+          "repo": "nebula-quanta",
+          "line": "Deterministic Barnes-Hut N-body simulation in Rust"
+        },
+        {
+          "repo": "dynachaos",
+          "line": "Dynamical-systems analysis for time signals, with Rust kernels"
+        },
+        {
+          "repo": "chaos-atlas",
+          "line": "Interactive explorer of chaotic systems, attractors and fractals",
+          "site": "https://machine-made.github.io/chaos-atlas/"
+        },
+        {
+          "repo": "nanochat-rs",
+          "line": "Small language models trained in Rust, benchmarked against nanochat"
+        }
+      ]
     },
     {
-      "repo": "libsvm-rs",
-      "line": "Pure Rust LIBSVM, checked against the C++ original"
+      "title": "Desktop and editor tools",
+      "projects": [
+        {
+          "repo": "pdf-next",
+          "line": "PDF, image and Markdown viewer that reloads the moment the file changes"
+        },
+        {
+          "repo": "vscode-pdf-next",
+          "line": "PDF viewer for VS Code: PDF.js, live reload, search, outline"
+        },
+        {
+          "repo": "vscode-diff-next",
+          "line": "Compare branches or two workspaces in VS Code"
+        },
+        {
+          "repo": "homebrew-tap",
+          "line": "Homebrew casks for machine-made software"
+        }
+      ]
     },
     {
-      "repo": "nebula-quanta",
-      "line": "Deterministic Barnes-Hut N-body simulation in Rust"
-    },
-    {
-      "repo": "pdf-next",
-      "line": "PDF, image and Markdown viewer that reloads the moment the file changes"
-    },
-    {
-      "repo": "vscode-pdf-next",
-      "line": "PDF viewer for VS Code: PDF.js, live reload, search, outline"
-    },
-    {
-      "repo": "vscode-diff-next",
-      "line": "Compare branches or two workspaces in VS Code"
-    },
-    {
-      "repo": "bun-do",
-      "line": "Local-first todo app for people and AI agents: REST API and MCP server"
-    },
-    {
-      "repo": "homebrew-tap",
-      "line": "Homebrew casks for machine-made software"
+      "title": "Tools for agents",
+      "projects": [
+        {
+          "repo": "bun-do",
+          "line": "Local-first todo app for people and AI agents: REST API and MCP server"
+        },
+        {
+          "repo": "fortran-lsp",
+          "line": "Fortran language server plugin for Claude Code"
+        },
+        {
+          "repo": "pi-effort",
+          "line": "Pi command to inspect and change thinking effort"
+        }
+      ]
     }
   ],
   "houses": [

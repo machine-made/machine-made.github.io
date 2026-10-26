@@ -5,7 +5,7 @@
 | Repo | machine-made/machine-made.github.io |
 | House | machine-made |
 | Line | identity |
-| Visibility | private |
+| Visibility | public |
 | Stage | draft |
 | Gate now | `sh gate.sh` passes |
 | Next task | Founder review |
@@ -18,7 +18,7 @@
 - Two builds give byte-identical files.
 - `check_site.py` passes: the HTML parses, every local link and image resolves, every image has
   alt text, contrast is 7:1 or better for text, one accent colour, the left third of the weave is
-  empty, and only the eight public projects and the two houses are linked.
+  empty, and only the public projects (with the one chaos-atlas site link) and the two houses are linked.
 - Screenshots at 1440 px and 375 px, light and dark. No horizontal scroll at 375 px.
 
 ## Open risks

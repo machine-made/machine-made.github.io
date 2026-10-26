@@ -166,6 +166,13 @@ p {
   display: block;
 }
 
+.hobby {
+  margin-top: var(--sp-1);
+  font-size: var(--s1);
+  line-height: 1.3;
+  color: var(--muted);
+}
+
 .hero {
   width: 100%;
   aspect-ratio: var(--weave-ratio);
@@ -197,6 +204,10 @@ p {
 
   .tagline {
     margin-top: var(--sp-4);
+    font-size: clamp(1rem, 1.5vw, var(--s1));
+  }
+
+  .hobby {
     font-size: clamp(1rem, 1.5vw, var(--s1));
   }
 }
@@ -231,14 +242,6 @@ p {
   max-width: var(--measure);
 }
 
-.lead {
-  display: grid;
-  gap: var(--sp-3);
-  max-width: 36rem;
-  font-size: var(--s1);
-  line-height: 1.4;
-}
-
 .projects li {
   display: grid;
   position: relative;
@@ -266,6 +269,18 @@ p {
   justify-self: start;
   font-family: var(--mono);
   font-weight: 500;
+}
+
+.projects .site {
+  position: relative;
+  z-index: 1;
+  margin-left: var(--sp-2);
+  font-family: var(--mono);
+  font-weight: 500;
+}
+
+.projects .site::after {
+  content: none;
 }
 
 .projects a::after {

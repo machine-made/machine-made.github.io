@@ -35,6 +35,7 @@ GROUPS = (
     ("Science and numerics", ("minuit2-rs", "libsvm-rs", "nebula-quanta", "dynachaos", "chaos-atlas", "nanochat-rs")),
     ("Desktop and editor tools", ("pdf-next", "vscode-pdf-next", "vscode-diff-next", "homebrew-tap")),
     ("Tools for agents", ("bun-do", "fortran-lsp", "pi-effort")),
+    ("Type", ("type",)),
 )
 PUBLIC_REPOS = tuple(repo for _, repos in GROUPS for repo in repos)
 SITE_LINKS = {"chaos-atlas": "https://machine-made.github.io/chaos-atlas/"}

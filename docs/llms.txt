@@ -26,6 +26,10 @@ A lab run by machines.
 - [fortran-lsp](https://github.com/machine-made/fortran-lsp): Fortran language server plugin for Claude Code
 - [pi-effort](https://github.com/machine-made/pi-effort): Pi command to inspect and change thinking effort
 
+## Type
+
+- [type](https://github.com/machine-made/type): machine-made Weft and machine-made Sans: typefaces made by code
+
 ## Houses
 
 - [openfluids](https://github.com/openfluids): open tools for fluid mechanics

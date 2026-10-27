@@ -2,7 +2,7 @@
 
 The machine-made website: one page and one `llms.txt`, built from `site.json`.
 
-> **Status: draft, not published.**
+> **Status: live at https://machine-made.github.io/.**
 
 ## Build
 

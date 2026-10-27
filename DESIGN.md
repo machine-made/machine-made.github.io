@@ -14,8 +14,17 @@ the weave in the header. Every section starts its text there.
 
 ## Type
 
-- Geist Mono for the name, headings and project names. Geist for reading. Both from Google
-  Fonts, linked from the page.
+- machine-made Weft for the name, headings, project names and the footer. machine-made Sans
+  for reading. Both are machine-made typefaces (github.com/machine-made/type, SIL Open Font
+  License 1.1), served from `docs/fonts/` with `font-display: swap`. The page preloads both,
+  because the header uses both.
+- The fonts are variable. `fonts.py` cuts them to Latin-1 and common punctuation: Weft keeps
+  wght 100 to 900 and FRAG 0 to 15, Sans keeps wght 200 to 800. Each file is about 24 KB.
+- Weft has one advance for every glyph, 750 units, and narrow ink, so it sets wide. Mono type has
+  negative tracking: -0.08 em on the name, -0.06 em on headings, -0.03 em on project names and
+  small text. Sans has a narrow word space, so reading text has 0.05 em of word spacing.
+- The name has FRAG 12: ink-trap notches, inside the range that the type repository proves for
+  text (0 to 15). All other text has FRAG 0.
 - Scale 1.25 on a 17 px base: 13.6, 17, 21.25, 26.6 px. The name is fluid: 30 to 48 px on small screens, 24 to 52 px beside the weave.
 - Sentence case. No capitals for emphasis.
 - Body copy is capped at 34rem (the larger intro at 36rem), so a line has fewer than 70 characters.
@@ -80,6 +89,8 @@ Proven for machines." (38 columns). The caption, in small mono, says so.
 - Skip link first. Visible focus ring. Alt text on every image.
 - Contrast: black on white 21:1, grey 595959 on white 7:1, white on black 21:1, grey A6A6A6 on
   black 8.6:1. The gate computes these.
-- No script. No tracking. External requests: Google Fonts only.
+- No script. No tracking. External requests: none. `check_site.py` fails on any external
+  stylesheet, font, preload or css url, and `shots.py` fails when the page asks for any file
+  outside `docs/`.
 - No horizontal scroll from 320 px to 1920 px. `shots.py` measures it at 320, 360, 375, 720, 1000,
   1440 and 1920 px, in light and dark.

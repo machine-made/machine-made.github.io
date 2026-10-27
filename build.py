@@ -32,7 +32,11 @@ MASK64 = (1 << 64) - 1
 FILE_NAME = re.compile(r"[a-z0-9][a-z0-9._-]*")
 REPO_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 COLOUR = re.compile(r"#[0-9a-f]{6}")
-FONTS_HREF = "https://fonts.googleapis.com/css2?family=Geist:wght@400;500&amp;family=Geist+Mono:wght@400;500&amp;display=swap"
+FONTS = ROOT / "fonts"
+# The web fonts and their licences. fonts.py cuts them from machine-made/type; build.py copies them.
+FONT_FILES = ("mm-weft.woff2", "mm-sans.woff2", "mm-weft-OFL.txt", "mm-sans-OFL.txt")
+# The fonts that the header uses, so the browser fetches them before it reads style.css.
+PRELOAD = ("mm-weft.woff2", "mm-sans.woff2")
 
 
 class Rng:
@@ -355,6 +359,9 @@ def page_html(site: dict[str, Any]) -> str:
         f'<ul class="projects">\n{project_items(site, g["projects"])}\n</ul>\n</div>\n</section>'
         for g in site["groups"]
     )
+    preload = "\n".join(
+        f'<link rel="preload" href="fonts/{font}" as="font" type="font/woff2" crossorigin>' for font in PRELOAD
+    )
     houses = " and ".join(
         f'<a href="{esc(h["url"])}">{esc(h["name"])}</a> ({esc(h["line"])})' for h in site["houses"]
     )
@@ -367,9 +374,7 @@ def page_html(site: dict[str, Any]) -> str:
 <meta name="description" content="{esc(site['tagline'])}">
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="mark.svg" type="image/svg+xml">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="{FONTS_HREF}">
+{preload}
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -424,6 +429,17 @@ def llms_txt(site: dict[str, Any]) -> str:
     )
 
 
+def font_bytes() -> dict[str, bytes]:
+    """The files in fonts/, read as bytes. A missing file stops the build."""
+    found: dict[str, bytes] = {}
+    for name in FONT_FILES:
+        path = FONTS / name
+        if not path.is_file():
+            fail(f"fonts/{name} is missing", "Run python3 fonts.py --type DIR with a checkout of machine-made/type.")
+        found[name] = path.read_bytes()
+    return found
+
+
 def write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8", newline="\n")
@@ -443,13 +459,18 @@ def main() -> None:
     }
     for title in [g["title"] for g in site["groups"]] + ["Houses", name]:
         files[f"rules/{slug(title)}.svg"] = card.rule_svg(title)
+    fonts = {f"fonts/{font}": data for font, data in font_bytes().items()}
     for rel, text in files.items():
         write(DOCS / rel, text)
-    for folder in (HEROES, DOCS / "rules"):
+    for rel, data in fonts.items():
+        (DOCS / rel).parent.mkdir(parents=True, exist_ok=True)
+        (DOCS / rel).write_bytes(data)
+    built = set(files) | set(fonts)
+    for folder in (HEROES, DOCS / "rules", DOCS / "fonts"):
         for stale in sorted(folder.glob("*")):
-            if f"{folder.name}/{stale.name}" not in files:
+            if f"{folder.name}/{stale.name}" not in built:
                 stale.unlink()
-    print(json.dumps({"built": len(files)}))
+    print(json.dumps({"built": len(built)}))
 
 
 if __name__ == "__main__":

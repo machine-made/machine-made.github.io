@@ -44,10 +44,14 @@ TAGLINE = "Made by machines. Proven for machines."
 SUBTITLE = "A lab run by machines."
 FOOTER = "Made by agents. Directed by a person, in spare time."
 BASE_FILES = {"index.html", "style.css", "mark.svg", "llms.txt"}
+# The two fonts of the site and their licences, served from docs/fonts/. The page loads nothing else.
+FONT_FAMILIES = {"machine-made Weft": "mm-weft", "machine-made Sans": "mm-sans"}
+FONT_FILES = {f"fonts/{slug}{end}" for slug in FONT_FAMILIES.values() for end in (".woff2", "-OFL.txt")}
+# Public sites of third parties that a licence text names. Only the licences may name them.
+LICENCE_URLS = {"fonts/mm-sans-OFL.txt": ("github.com/tokotype/PlusJakartaSans",)}
 RULE_PITCH = 8
 CODE_BITS = 7
 FILE_NAME = re.compile(r"[a-z0-9][a-z0-9._-]*")
-FONT_HOSTS = ("fonts.googleapis.com", "fonts.gstatic.com")
 FRAME = (1408, 469)
 FORBIDDEN = re.compile(
     r"[$\u20ac\u00a3]\s?[0-9]|\b(?:usd|chf|eur)\s?[0-9]|[0-9]\s?(?:usd|chf|eur)\b"
@@ -65,7 +69,7 @@ FORBIDDEN_TAGS = (
     "base",
 )
 ALLOWED_ATTRS = {
-    "lang", "charset", "name", "content", "rel", "href", "type", "crossorigin", "class", "id",
+    "lang", "charset", "name", "content", "rel", "href", "type", "crossorigin", "as", "class", "id",
     "src", "width", "height", "alt", "loading", "aria-labelledby",
 }
 PAINT_PROPS = ("fill", "stroke", "stop-color", "flood-color", "lighting-color", "color")
@@ -294,7 +298,7 @@ def rule_titles(name: str | None) -> list[str]:
 
 
 def check_files(name: str | None) -> None:
-    wanted = BASE_FILES | {f"rules/{slug(title)}.svg" for title in rule_titles(name)}
+    wanted = BASE_FILES | FONT_FILES | {f"rules/{slug(title)}.svg" for title in rule_titles(name)}
     if name:
         wanted.add(f"heroes/{name}.svg")
     present = {p.relative_to(DOCS).as_posix() for p in DOCS.rglob("*") if p.is_file()}
@@ -374,8 +378,7 @@ def check_html(page: Page, html_text: str, name: str | None) -> None:
             if parts.scheme.lower() != "https":
                 fail("links", f"{href} is not an https link")
             elif link.get("tag") == "link":
-                if parts.hostname not in FONT_HOSTS or parts.username or parts.port:
-                    fail("links", f"{href} is an external resource that is not a font")
+                fail("links", f"{href} is an external resource; the page loads only files in docs/")
             elif not (
                 href in HOUSE_URLS
                 or href in SITE_LINKS.values()
@@ -389,7 +392,7 @@ def check_html(page: Page, html_text: str, name: str | None) -> None:
 
 
 def check_refs(text: str, where: str, kind: CssKind) -> None:
-    """url() and @import targets: css may load the two font hosts and local files; svg only #fragments.
+    """url() and @import targets: css may load only local files; svg only #fragments.
 
     Every other CSS image function is refused, and so is a backslash, which can spell any name."""
     if "\\" in text:
@@ -405,13 +408,51 @@ def check_refs(text: str, where: str, kind: CssKind) -> None:
         if kind == "svg":
             fail("links", f"{where} refers to {target[:50]!r}; an svg may refer only to its own ids")
         elif parts.scheme or parts.netloc:
-            font = parts.scheme.lower() == "https" and parts.hostname in FONT_HOSTS
-            if not font or parts.username or parts.port:
-                fail("links", f"{where} loads {target[:50]!r}; only the two font hosts and local files are allowed")
+            fail("links", f"{where} loads {target[:50]!r}; only local files are allowed")
         else:
             local = local_target(target)
             if local is None or not local.is_file():
                 fail("links", f"{where} refers to {target[:50]!r}, which is not a file inside docs/")
+
+
+LOCAL_WOFF2 = re.compile(r"\s*url\(\s*(['\"]?)fonts/([a-z-]+)\.woff2\1\s*\)\s*format\(\s*(['\"])woff2\3\s*\)\s*")
+
+
+def check_fonts(html_text: str) -> None:
+    """The fonts are files in docs/fonts/: one @font-face per family with a local woff2 and
+    font-display: swap, each file a real woff2, each preload a local woff2 with crossorigin."""
+    css = re.sub(r"/\*.*?\*/", " ", read("style.css"), flags=re.S)
+    faces = re.findall(r"@font-face\s*\{([^}]*)\}", css, re.I)
+    seen: set[str] = set()
+    for face in faces:
+        family = re.search(r"font-family\s*:\s*(['\"])(.*?)\1", face)
+        src = re.search(r"(?<![\w-])src\s*:\s*([^;]*)", face)
+        source = re.fullmatch(LOCAL_WOFF2, src.group(1)) if src else None
+        name = family.group(2) if family else "?"
+        if name not in FONT_FAMILIES:
+            fail("fonts", f"style.css has an @font-face for {name!r}; the site uses only {', '.join(FONT_FAMILIES)}")
+            continue
+        seen.add(name)
+        if not source or source.group(2) != FONT_FAMILIES[name]:
+            fail("fonts", f"the @font-face of {name} must load only fonts/{FONT_FAMILIES[name]}.woff2")
+        if not re.search(r"font-display\s*:\s*swap\b", face):
+            fail("fonts", f"the @font-face of {name} needs font-display: swap")
+    for name in sorted(set(FONT_FAMILIES) - seen):
+        fail("fonts", f"style.css has no @font-face for {name}")
+    for rel in sorted(f for f in FONT_FILES if f.endswith(".woff2")):
+        path = DOCS / rel
+        if path.is_file() and path.read_bytes()[:4] != b"wOF2":
+            fail("fonts", f"docs/{rel} is not a woff2 font")
+    preloads = re.findall(r"<link\b[^>]*\brel=\"preload\"[^>]*>", html_text)
+    if not preloads:
+        fail("fonts", "the page preloads no font; preload the fonts of the header")
+    for tag in preloads:
+        href = re.search(r'\bhref="([^"]*)"', tag)
+        target = href.group(1) if href else ""
+        if not target.endswith(".woff2") or target not in FONT_FILES:
+            fail("fonts", f"the page preloads {target[:50]!r}, which is not a font of the site")
+        if 'as="font"' not in tag or 'type="font/woff2"' not in tag or not re.search(r"\bcrossorigin\b", tag):
+            fail("fonts", f"the preload of {target[:50]!r} needs as=\"font\", type=\"font/woff2\" and crossorigin")
 
 
 def sentences_of(paragraph: str) -> list[str]:
@@ -474,7 +515,7 @@ def emitted(visible: str) -> Iterator[tuple[str, str]]:
     yield "index.html", visible
     for path in sorted(DOCS.rglob("*")):
         name = path.relative_to(DOCS).as_posix()
-        if path.is_file() and name != "index.html":
+        if path.is_file() and name != "index.html" and path.suffix != ".woff2":
             yield name, path.read_text(encoding="utf-8", errors="replace")
 
 
@@ -493,7 +534,7 @@ def check_leaks(visible: str, deny: list[str]) -> None:
         # An svg or a page can spell a name with &#x..; references. Match the raw and the decoded text.
         source = raw + "\n" + decoded(raw)
         for match in GITHUB.findall(source):
-            ok = match in house_hosts or any(
+            ok = match in house_hosts or match in LICENCE_URLS.get(name, ()) or any(
                 match == f"github.com/{OWNER}/{repo}" for repo in PUBLIC_REPOS
             )
             if not ok:
@@ -512,7 +553,7 @@ def check_leaks(visible: str, deny: list[str]) -> None:
 
 def check_forbidden() -> None:
     for path in sorted(DOCS.rglob("*")):
-        if path.is_file():
+        if path.is_file() and path.suffix != ".woff2":
             hit = FORBIDDEN.search(path.read_text(encoding="utf-8", errors="replace"))
             if hit:
                 fail("forbidden", f"docs/{path.relative_to(DOCS).as_posix()} contains {hit.group(0)!r}")
@@ -846,6 +887,7 @@ def run_checks(deny: list[str]) -> list[str]:
         check_html(page, html_text, name)
         visible = check_content(page, html_text)
         check_leaks(visible, deny)
+        check_fonts(html_text)
     check_forbidden()
     check_css()
     check_svgs(name)
@@ -854,6 +896,7 @@ def run_checks(deny: list[str]) -> list[str]:
 
 
 LONG = " ".join(["word"] * 30) + "."
+STYLE_LINK = '<link rel="stylesheet" href="style.css">'
 
 
 def edit(docs: Path, name: str, old: str, new: str) -> None:
@@ -897,6 +940,7 @@ def site_copy(root: Path, changes: dict[str, object]) -> subprocess.CompletedPro
     (root / "src").mkdir(parents=True)
     for rel in ("build.py", "card.py", "src/style.css"):
         shutil.copy(ROOT / rel, root / rel)
+    shutil.copytree(ROOT / "fonts", root / "fonts")
     data = json.loads((ROOT / "site.json").read_text(encoding="utf-8"))
     data.update(changes)
     (root / "site.json").write_text(json.dumps(data), encoding="utf-8")
@@ -923,6 +967,18 @@ def build_rejects(changes: dict[str, object]) -> bool:
         done = site_copy(root, changes)
         outside = [p.name for p in Path(tmp).rglob("*.svg") if root / "docs" not in p.parents]
         return done.returncode == 2 and not outside
+
+
+def build_needs_fonts() -> bool:
+    """True when build.py exits 2 without fonts/ and writes no docs/."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "site"
+        site_copy(root, {})
+        shutil.rmtree(root / "fonts")
+        shutil.rmtree(root / "docs")
+        env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+        done = subprocess.run([sys.executable, str(root / "build.py")], capture_output=True, env=env)
+        return done.returncode == 2 and not (root / "docs").exists()
 
 
 def renamed_site_passes(new_name: str) -> bool:
@@ -979,8 +1035,25 @@ def self_test() -> None:
         ("image leaves docs/", "links", [], lambda d: edit(d, "index.html", 'src="mark.svg"', 'src="../README.md"')),
         ("absolute local link", "links", [], lambda d: edit(d, "index.html", 'href="style.css"', 'href="/etc/hostname"')),
         ("protocol-relative link", "links", [], lambda d: edit(d, "index.html", 'href="style.css"', 'href="//example.com/x.css"')),
-        ("look-alike font host", "links", [], lambda d: edit(d, "index.html", 'href="https://fonts.gstatic.com"', 'href="https://fonts.gstatic.com.example.net"')),
-        ("font host with userinfo", "links", [], lambda d: edit(d, "index.html", 'href="https://fonts.googleapis.com"', 'href="https://fonts.googleapis.com@example.net"')),
+        ("Google Fonts stylesheet", "links", [], lambda d: edit(d, "index.html", STYLE_LINK, '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Other">' + STYLE_LINK)),
+        ("font preconnect", "links", [], lambda d: edit(d, "index.html", STYLE_LINK, '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' + STYLE_LINK)),
+        ("remote stylesheet", "links", [], lambda d: edit(d, "index.html", 'href="style.css"', 'href="https://example.net/style.css"')),
+        ("preload of a remote font", "links", [], lambda d: edit(d, "index.html", 'href="fonts/mm-weft.woff2"', 'href="https://fonts.gstatic.com/x.woff2"')),
+        ("preload of a file that is not a font", "fonts", [], lambda d: edit(d, "index.html", 'href="fonts/mm-weft.woff2"', 'href="mark.svg"')),
+        ("preload without crossorigin", "fonts", [], lambda d: edit(d, "index.html", 'type="font/woff2" crossorigin>', 'type="font/woff2">')),
+        ("no preload", "fonts", [], lambda d: edit_all(d, "index.html", *[(f'<link rel="preload" href="fonts/{f}.woff2" as="font" type="font/woff2" crossorigin>\n', "") for f in ("mm-weft", "mm-sans")])),
+        ("css font face from a font host", "links", [], lambda d: edit(d, "style.css", "url(fonts/mm-weft.woff2)", "url(https://fonts.gstatic.com/s/other/v1/x.woff2)")),
+        ("css imports Google Fonts", "links", [], lambda d: edit(d, "style.css", ":root{", '@import url("https://fonts.googleapis.com/css2?family=Other");:root{')),
+        ("css font face from a local file that is not the font", "fonts", [], lambda d: edit(d, "style.css", "url(fonts/mm-weft.woff2)", "url(fonts/mm-sans.woff2)")),
+        ("css font face for another family", "fonts", [], lambda d: edit(d, "style.css", 'font-family: "machine-made Sans";', 'font-family: "Other";')),
+        ("css font face without swap", "fonts", [], lambda d: edit(d, "style.css", "font-display: swap;", "font-display: block;")),
+        ("font file is not a woff2", "fonts", [], lambda d: (d / "fonts" / "mm-sans.woff2").write_bytes(b"<svg/>")),
+        ("font file missing", "files", [], lambda d: (d / "fonts" / "mm-weft.woff2").unlink()),
+        ("font licence missing", "files", [], lambda d: (d / "fonts" / "mm-sans-OFL.txt").unlink()),
+        ("extra font file", "files", [], lambda d: (d / "fonts" / "other.woff2").write_bytes(b"wOF2")),
+        ("private repo in a font licence", "private", [], lambda d: edit(d, "fonts/mm-weft-OFL.txt", "SIL OPEN FONT", "github.com/machine-made/zzprivate SIL OPEN FONT")),
+        ("upstream link outside its licence", "private", [], lambda d: edit(d, "fonts/mm-weft-OFL.txt", "SIL OPEN FONT", "github.com/tokotype/PlusJakartaSans SIL OPEN FONT")),
+        ("money amount in a font licence", "forbidden", [], lambda d: edit(d, "fonts/mm-sans-OFL.txt", "SIL OPEN FONT", "$5 SIL OPEN FONT")),
         *[
             (f"{tag} tag", "no-js", [], lambda d, tag=tag: edit(d, "index.html", "<body>", f'<body><{tag} src="https://example.net/x"></{tag}>'))
             for tag in ("audio", "video", "source", "track", "iframe", "object", "embed")
@@ -1029,7 +1102,7 @@ def self_test() -> None:
         ("css url on a look-alike font host", "links", [], lambda d: edit(d, "style.css", ":root{", "a{background:url(https://fonts.gstatic.com.example.net/f.woff2)}:root{")),
         ("css url leaves docs/", "links", [], lambda d: edit(d, "style.css", ":root{", "a{background:url(../README.md)}:root{")),
         ("css data url", "links", [], lambda d: edit(d, "style.css", ":root{", "a{background:url(data:image/png;base64,AAAA)}:root{")),
-        ("css uses a font host and a local file", None, [], lambda d: edit(d, "style.css", ":root{", '@import url("https://fonts.googleapis.com/css2?family=Geist");a{list-style-image:url(mark.svg)}:root{')),
+        ("css uses a local file", None, [], lambda d: edit(d, "style.css", ":root{", "a{list-style-image:url(mark.svg)}:root{")),
         ("script in the hero svg", "no-js", [], lambda d: edit(d, hero, "<title>", "<script>1</script><title>")),
         ("event handler in the mark svg", "no-js", [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<path onclick="x()" class="k"')),
         ("external href in the hero svg", "links", [], lambda d: edit(d, hero, "<defs>", '<defs><use href="https://example.net/x.svg#a"/>')),
@@ -1120,6 +1193,7 @@ def self_test() -> None:
         for bad_year in (True, False, "2026", 2026.0, None):
             report(build_rejects({"year": bad_year}), f"build.py accepted the year {bad_year!r}")
         report(renamed_site_passes("loom-x"), "a site under another name does not pass the checks")
+        report(build_needs_fonts(), "build.py builds without the fonts in fonts/")
         report(tagline_keeps_its_tail(), "build.py cuts a tagline whose last part has no end mark")
         missing = str(Path(tmp) / "missing")
         denied = Path(tmp) / "deny.txt"

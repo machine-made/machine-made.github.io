@@ -7,7 +7,7 @@
 | Line | identity |
 | Visibility | public |
 | Stage | draft |
-| Gate now | `sh gate.sh` passes |
+| Gate now | `sh gate.sh` and `MM_FONTS=fonts sh gate.sh` pass |
 | Next task | Founder review |
 | Blocked by | Founder review |
 | Last green CI | none yet |
@@ -15,16 +15,30 @@
 
 ## Proven
 
-- Two builds give byte-identical files.
+- Two builds give byte-identical files, fonts included.
 - `check_site.py` passes: the HTML parses, every local link and image resolves, every image has
   alt text, contrast is 7:1 or better for text, one accent colour, and only the public projects (with the one chaos-atlas site link) and the two houses are linked.
+- The page makes no external request. The two fonts, machine-made Weft and machine-made Sans,
+  are files in `docs/fonts/` with their licences. `check_site.py` fails on any external
+  stylesheet, preload, font or css url, on an `@font-face` without `font-display: swap`, and on a
+  font file that is not WOFF2. `shots.py` records every request and fails on one outside `docs/`.
+- `fonts.py` cuts the fonts from machine-made/type a24c99d. Two runs give the same bytes. The
+  cut keeps both Weft axes (wght 100 to 900, FRAG 0 to 15) and the Sans weight axis.
 - The header shows the weave and the square mark, with one red accent. Every row of dots encodes its
   section title; the checker reads the dots back and compares the text.
-- `brand/` is what `brand.py` writes, and two runs give the same bytes (`MM_FONTS=DIR sh gate.sh`).
-- Screenshots at 1440 px and 375 px, light and dark. No horizontal scroll at 375 px.
+- `brand/` is what `brand.py` writes from `fonts/`, and two runs give the same bytes
+  (`MM_FONTS=fonts sh gate.sh`).
+- Screenshots at 1440 px and 375 px, light and dark, in the site's own fonts (`shots.py` checks
+  that both fonts loaded). No horizontal scroll from 320 px to 1920 px. Longest line of copy 62
+  characters.
 
 ## Open risks
 
-- Fonts come from Google Fonts at view time. Offline, the page falls back to system fonts. The
-  screenshots used local copies of Geist because the build sandbox cannot reach Google Fonts.
+- The fonts are version 0.1. A new release needs `python3 fonts.py --type DIR`, a new `brand/`
+  and a look at the screenshots: the tracking values in `src/style.css` and `brand.py` are tuned
+  to the 0.1 metrics.
+- Weft has no hinting. Small mono text (project names, footer) can look soft on Windows at low
+  resolution.
+- Weft covers Latin-1 only. A project name or line with other letters falls back to the system
+  monospace for those letters.
 - Publishing is a separate step and needs the founder.

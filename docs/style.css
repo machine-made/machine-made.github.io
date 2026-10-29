@@ -319,31 +319,43 @@ p {
 }
 
 .split > p,
-.projects p {
+.projects p,
+.papers p {
   max-width: var(--measure);
 }
 
-.projects li {
+.projects li,
+.papers li {
   display: grid;
   position: relative;
   gap: var(--sp-1);
   padding-block: var(--sp-3);
 }
 
-.projects li:first-child {
+.projects li:first-child,
+.papers li:first-child {
   padding-top: 0;
 }
 
-.projects li + li {
+.projects li + li,
+.papers li + li {
   border-top: 1px solid var(--rule);
 }
 
 @media (min-width: 1000px) {
-  .projects li {
+  .projects li,
+  .papers li {
     grid-template-columns: 13rem minmax(0, 1fr);
     gap: var(--sp-4);
     align-items: baseline;
   }
+}
+
+.papers .status {
+  font-family: var(--mono);
+  font-size: var(--s-1);
+  letter-spacing: var(--mono-track-small);
+  color: var(--muted);
 }
 
 .projects a {

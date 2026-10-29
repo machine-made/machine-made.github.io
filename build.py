@@ -291,6 +291,15 @@ def load_site() -> dict[str, Any]:
     for key, text in (("name", site["name"]), ("tagline", site["tagline"]), ("subtitle", site["subtitle"])):
         if not text.strip() or not all(32 <= ord(c) < 127 for c in text):
             fail(f"site.{key} is empty or not printable ASCII", f"Write site.{key} in printable ASCII; the card encodes it.")
+    title = site.get("title", site["name"])
+    if not isinstance(title, str) or title.lower() != site["name"] or not title.isascii():
+        fail("site.title must be the name with capitals only", 'Write site.title as site.name with some letters in capitals, or leave it out.')
+    papers = site.get("papers", [])
+    if not isinstance(papers, list) or not all(
+        isinstance(p, dict) and isinstance(p.get("title"), str) and isinstance(p.get("status"), str) and p["title"].isascii()
+        for p in papers
+    ):
+        fail("site.papers must be a list of {title, status}", "Give each paper a title and a status, in plain ASCII.")
     if not card.sentences(site["tagline"]):
         fail("site.tagline has no sentence", "Write the line as one or two short sentences.")
     slugs: set[str] = {"main", "houses", slug(site["name"])}
@@ -353,8 +362,28 @@ def project_items(site: dict[str, Any], projects: list[dict[str, str]]) -> str:
     return "\n".join(items)
 
 
+def display_name(site: dict[str, Any]) -> str:
+    """The name as people read it: site.title when set (the name with capitals), else site.name."""
+    return str(site.get("title", site["name"]))
+
+
+def papers_section(site: dict[str, Any]) -> str:
+    """The Papers section: each paper with its status, no link until it is public. Empty when there are none."""
+    papers = site.get("papers", [])
+    if not papers:
+        return ""
+    items = "\n".join(
+        f'<li><span class="status">{esc(p["status"])}</span><p>{esc(p["title"])}</p></li>' for p in papers
+    )
+    return (
+        f'<section class="section" aria-labelledby="papers">\n{rule_img("Papers")}\n'
+        f'<div class="wrap split">\n<h2 id="papers">Papers</h2>\n<ul class="papers">\n{items}\n</ul>\n</div>\n</section>\n'
+    )
+
+
 def page_html(site: dict[str, Any]) -> str:
     name = site["name"]
+    shown = display_name(site)
     tagline = " ".join(f"<span>{esc(line)}</span>" for line in card.sentences(site["tagline"]))
     groups = "\n".join(
         f'<section class="section" aria-labelledby="{slug(g["title"])}">\n{rule_img(g["title"])}\n'
@@ -379,7 +408,7 @@ def page_html(site: dict[str, Any]) -> str:
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{esc(name)}</title>
+<title>{esc(shown)}</title>
 <meta name="description" content="{esc(site['tagline'])}">
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="mark.svg" type="image/svg+xml">
@@ -396,9 +425,9 @@ def page_html(site: dict[str, Any]) -> str:
 <header class="masthead wrap">
 <div class="masthead-frame">
 <div class="masthead-text">
-<img class="mark" src="mark.svg" width="56" height="56" alt="Mark of {esc(name)}: a grid of three by three squares, one of them red">
+<img class="mark" src="mark.svg" width="56" height="56" alt="Mark of {esc(shown)}: a grid of three by three squares, one of them red">
 <div>
-<h1>{esc(name)}</h1>
+<h1>{esc(shown)}</h1>
 <p class="tagline">{tagline}</p>
 <p class="subtitle">{esc(site['subtitle'])}</p>
 </div>
@@ -408,7 +437,7 @@ def page_html(site: dict[str, Any]) -> str:
 </header>
 <main id="main">
 {groups}
-<section class="section" aria-labelledby="houses">
+{papers_section(site)}<section class="section" aria-labelledby="houses">
 {rule_img("Houses")}
 <div class="wrap split">
 <h2 id="houses">Houses</h2>
@@ -436,10 +465,14 @@ def llms_txt(site: dict[str, Any]) -> str:
     groups = "\n\n".join(
         f"## {g['title']}\n\n" + "\n".join(entry(p) for p in g["projects"]) for g in site["groups"]
     )
+    papers = "".join(
+        f"- {p['title']} ({p['status']})\n" for p in site.get("papers", [])
+    )
+    papers = f"## Papers\n\n{papers}\n" if papers else ""
     houses = "\n".join(f"- [{h['name']}]({h['url']}): {h['line']}" for h in site["houses"])
     return (
-        f"# {site['name']}\n\n> {site['tagline']}\n\n{site['subtitle']}\n\n"
-        f"{groups}\n\n## Houses\n\n{houses}\n\n{site['footer']}\n"
+        f"# {display_name(site)}\n\n> {site['tagline']}\n\n{site['subtitle']}\n\n"
+        f"{groups}\n\n{papers}## Houses\n\n{houses}\n\n{site['footer']}\n"
     )
 
 
@@ -482,12 +515,13 @@ def main() -> None:
     name = site["name"]
     files = {
         "index.html": page_html(site),
-        "style.css": root_css(name) + style,
+        "style.css": root_css(display_name(site)) + style,
         "mark.svg": card.mark_svg(),
         "llms.txt": llms_txt(site),
         f"heroes/{name}.svg": hero_svg(name),
     }
-    for title in [g["title"] for g in site["groups"]] + ["Houses", name]:
+    papers = ["Papers"] if site.get("papers") else []
+    for title in [g["title"] for g in site["groups"]] + papers + ["Houses", name]:
         files[f"rules/{slug(title)}.svg"] = card.rule_svg(title)
     fonts = {f"fonts/{font}": data for font, data in font_bytes().items()}
     for rel, text in files.items():

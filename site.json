@@ -104,6 +104,24 @@
       ]
     }
   ],
+  "papers": [
+    {
+      "status": "under review",
+      "title": "linstabpy: open-source compressible stability and resolvent analysis"
+    },
+    {
+      "status": "in preparation",
+      "title": "LoomBench: a numerical benchmark for coding agents, with hidden oracles, timings and an audit trail"
+    },
+    {
+      "status": "in preparation",
+      "title": "From Locking to Collective Chaos: A Reproducible Review of Kaneko's Circle Maps, Torus Instabilities, Coupled Map Lattices and Globally Coupled Maps"
+    },
+    {
+      "status": "in preparation",
+      "title": "OpenModalPy: modal decomposition of spatiotemporal data"
+    }
+  ],
   "houses": [
     {
       "name": "openfluids",

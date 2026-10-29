@@ -45,6 +45,17 @@ TAB_URLS = ("https://machine-made.github.io/type/",)
 TAGLINE = "Human vision. Machine-made."
 SUBTITLE = "Foundations for science and engineering, built for humans today and agents tomorrow."
 FOOTER = "An open-source workshop. Built by agents, guided by humans."
+# The papers the page may list, as (status, title). No link until a paper is public.
+PAPERS = (
+    ("under review", "linstabpy: open-source compressible stability and resolvent analysis"),
+    ("in preparation", "LoomBench: a numerical benchmark for coding agents, with hidden oracles, timings and an audit trail"),
+    (
+        "in preparation",
+        "From Locking to Collective Chaos: A Reproducible Review of Kaneko's Circle Maps, Torus Instabilities, "
+        "Coupled Map Lattices and Globally Coupled Maps",
+    ),
+    ("in preparation", "OpenModalPy: modal decomposition of spatiotemporal data"),
+)
 BASE_FILES = {"index.html", "style.css", "mark.svg", "llms.txt"}
 # The two fonts of the site and their licences, served from docs/fonts/. The page loads nothing else.
 FONT_FAMILIES = {"machine-made Weft": "mm-weft", "machine-made Sans": "mm-sans"}
@@ -127,6 +138,20 @@ def fail(rule: str, message: str) -> None:
     line = f"FAIL {rule}: {message}"
     if line not in failures:
         failures.append(line)
+
+
+def site_title(name: str | None) -> str | None:
+    """The name as people read it: site.json title (the name with capitals) when set, else the name."""
+    if not name:
+        return None
+    try:
+        title = json.loads((ROOT / "site.json").read_text(encoding="utf-8")).get("title", name)
+    except (OSError, ValueError, AttributeError):
+        return name
+    if not isinstance(title, str) or title.lower() != name:
+        fail("site", "site.json title must be the name with capitals only")
+        return name
+    return title
 
 
 def site_name() -> str | None:
@@ -300,7 +325,12 @@ def slug(title: str) -> str:
 def rule_titles(name: str | None) -> list[str]:
     """The text that each decorative row of dots must encode, in page order: the group titles,
     Houses, and the site name for the footer."""
-    return [title for title, _ in GROUPS] + ["Houses"] + ([name] if name else [])
+    return section_titles() + ([name] if name else [])
+
+
+def section_titles() -> list[str]:
+    """The h2 headings in page order: the groups, Papers when there are papers, Houses."""
+    return [title for title, _ in GROUPS] + (["Papers"] if PAPERS else []) + ["Houses"]
 
 
 def check_files(name: str | None) -> None:
@@ -358,8 +388,9 @@ def check_html(page: Page, html_text: str, name: str | None) -> None:
         fail("semantic", "the page needs exactly one h1")
     if page.tags.count("main") != 1:
         fail("semantic", "the page needs exactly one main")
-    if name and ("h1", name) not in page.headings:
-        fail("content", f"the h1 must be the site name, {name}")
+    shown = site_title(name)
+    if shown and ("h1", shown) not in page.headings:
+        fail("content", f"the h1 must be the site name, {shown}")
     if name and not any(img.get("src") == f"heroes/{name}.svg" for img in page.imgs):
         fail("hero", f"the header must show heroes/{name}.svg")
     first: Attrs = page.first_link or {}
@@ -507,12 +538,18 @@ def check_content(page: Page, html_text: str) -> str:
     found = group_lists(html_text, r'<h2 id="[\w-]+">([^<]*)</h2>\s*<ul class="projects">(.*?)</ul>')
     if found != [(title, list(repos)) for title, repos in GROUPS]:
         fail("projects", "the projects are not in the three groups, in order, under their headings")
-    if [h for kind, h in page.headings if kind == "h2"] != [t for t, _ in GROUPS] + ["Houses"]:
-        fail("projects", "the h2 headings must be the group titles, then Houses")
+    if [h for kind, h in page.headings if kind == "h2"] != section_titles():
+        fail("projects", "the h2 headings must be the group titles, then Papers if any, then Houses")
+    shown_papers = re.findall(
+        r'<li><span class="status">([^<]*)</span><p>([^<]*)</p></li>',
+        "".join(re.findall(r'<h2 id="papers">Papers</h2>\s*<ul class="papers">(.*?)</ul>', html_text, re.S)),
+    )
+    if [(html.unescape(s), html.unescape(t)) for s, t in shown_papers] != list(PAPERS):
+        fail("papers", "the Papers list must be exactly the allowed papers, in order, with their status")
     for repo, url in SITE_LINKS.items():
         if not re.search(rf'<a href="https://github.com/{OWNER}/{repo}">{repo}</a><p>[^<]*<a class="site" href="{re.escape(url)}">site</a></p>', html_text):
             fail("projects", f"{repo} needs a second link labelled site to {url}")
-    for title in [t for t, _ in GROUPS] + ["Houses"]:
+    for title in section_titles():
         if f'aria-labelledby="{slug(title)}">\n<img class="punch" src="rules/{slug(title)}.svg"' not in html_text:
             fail("hero", f"the section {title} must open with its row of dots, rules/{slug(title)}.svg")
     if not re.search(r'<footer class="section">\n<img class="punch" src="rules/[a-z0-9-]+\.svg"', html_text):
@@ -848,12 +885,16 @@ def check_llms(name: str | None) -> None:
     expected = [f"https://github.com/{OWNER}/{r}" for r in PUBLIC_REPOS] + list(HOUSE_URLS) + list(SITE_LINKS.values())
     if sorted(links) != sorted(expected):
         fail("llms", "llms.txt must list exactly the public repositories, the site links and the houses")
-    if name and not text.startswith(f"# {name}\n\n> {TAGLINE}\n\n{SUBTITLE}\n\n## "):
+    shown = site_title(name)
+    if shown and not text.startswith(f"# {shown}\n\n> {TAGLINE}\n\n{SUBTITLE}\n\n## "):
         fail("llms", "llms.txt must start with the name, the line and the subtitle line")
     if not text.endswith(f"\n\n{FOOTER}\n"):
         fail("llms", "llms.txt must end with the footer line")
     found = group_lists(text, r"## ([^\n]+)\n\n((?:- [^\n]*\n?)+)")
-    if [(t, r) for t, r in found if t != "Houses"] != [(title, list(repos)) for title, repos in GROUPS]:
+    paper_lines = [f"- {t} ({s})" for s, t in PAPERS]
+    if PAPERS and f"## Papers\n\n" + "\n".join(paper_lines) + "\n\n## Houses" not in text:
+        fail("llms", "llms.txt must list exactly the allowed papers before Houses")
+    if [(t, r) for t, r in found if t not in ("Houses", "Papers")] != [(title, list(repos)) for title, repos in GROUPS]:
         fail("llms", "llms.txt must follow the three groups, in order")
     lines = (re.sub(r"^[#>-]+\s*", "", line) for line in text.splitlines())
     check_prose([re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", line) for line in lines], "llms.txt")
@@ -1091,6 +1132,8 @@ def self_test() -> None:
         ("subtitle line missing in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", f"{SUBTITLE}\n\n", "")),
         ("old footer on the page", "content", [], lambda d: edit(d, "index.html", ", guided by humans.", ".")),
         ("old footer in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", ", guided by humans.", ".")),
+        ("a paper's status changed", "papers", [], lambda d: edit(d, "index.html", ">under review<", ">accepted<")),
+        ("a paper missing in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", "- OpenModalPy: modal decomposition of spatiotemporal data (in preparation)\n", "")),
         ("footer missing in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", f"\n\n{FOOTER}", "")),
         ("old subtitle line", "content", [], lambda d: edit(d, "index.html", "Foundations for science and engineering, built for humans today and agents tomorrow.", "A hobby: side projects, made in spare time.")),
         ("how we work comes back", "projects", [], lambda d: edit(d, "index.html", '<main id="main">', '<main id="main"><h2 id="work">How we work</h2>')),
@@ -1223,7 +1266,7 @@ def self_test() -> None:
 def load_allow(folder: str) -> None:
     """Point the checks at another house. Its allow.json is the public list, kept apart from site.json
     on purpose: the page passes only when the two agree."""
-    global ROOT, DOCS, OWNER, GROUPS, PUBLIC_REPOS, SITE_LINKS, HOUSE_URLS, TAB_URLS, TAGLINE, SUBTITLE, FOOTER
+    global ROOT, DOCS, OWNER, GROUPS, PUBLIC_REPOS, SITE_LINKS, HOUSE_URLS, TAB_URLS, TAGLINE, SUBTITLE, FOOTER, PAPERS
     root = Path(folder).resolve()
     try:
         allow = json.loads((root / "allow.json").read_text(encoding="utf-8"))
@@ -1233,6 +1276,7 @@ def load_allow(folder: str) -> None:
         HOUSE_URLS = tuple(str(u) for u in allow["house_urls"])
         TAB_URLS = tuple(str(u) for u in allow["tab_urls"])
         TAGLINE, SUBTITLE, FOOTER = str(allow["tagline"]), str(allow["subtitle"]), str(allow["footer"])
+        PAPERS = tuple((str(s), str(t)) for s, t in allow.get("papers", []))
     except (OSError, ValueError, KeyError, TypeError) as exc:
         print(f"FAIL args: {folder}/allow.json is missing or incomplete ({exc.__class__.__name__})")
         sys.exit(2)

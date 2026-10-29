@@ -157,6 +157,35 @@ p {
   text-wrap: pretty;
 }
 
+.tabs {
+  padding-top: var(--gutter);
+}
+
+.tabs ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-4);
+  margin: 0;
+  padding: 0 0 var(--sp-2);
+  list-style: none;
+  border-bottom: 1px solid var(--rule);
+}
+
+.tabs a {
+  font-family: var(--mono);
+  font-size: var(--s-1);
+  letter-spacing: var(--mono-track-small);
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.tabs a:hover,
+.tabs a[aria-current="page"] {
+  color: var(--fg);
+  text-decoration: underline;
+  text-underline-offset: 0.3em;
+}
+
 .masthead {
   padding-top: var(--gutter);
 }

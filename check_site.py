@@ -40,9 +40,11 @@ GROUPS = (
 PUBLIC_REPOS = tuple(repo for _, repos in GROUPS for repo in repos)
 SITE_LINKS = {"chaos-atlas": "https://machine-made.github.io/chaos-atlas/"}
 HOUSE_URLS = ("https://github.com/openfluids", "https://github.com/BoringQuantSystems")
+# The tab row at the top: the other sites of the houses.
+TAB_URLS = ("https://machine-made.github.io/type/",)
 TAGLINE = "Human vision. Machine-made."
 SUBTITLE = "Foundations for science and engineering, built for humans today and agents tomorrow."
-FOOTER = "Made by agents. Directed by a person, in spare time."
+FOOTER = "An open-source workshop. Built by agents, guided by humans."
 BASE_FILES = {"index.html", "style.css", "mark.svg", "llms.txt"}
 # The two fonts of the site and their licences, served from docs/fonts/. The page loads nothing else.
 FONT_FAMILIES = {"machine-made Weft": "mm-weft", "machine-made Sans": "mm-sans"}
@@ -381,6 +383,7 @@ def check_html(page: Page, html_text: str, name: str | None) -> None:
                 fail("links", f"{href} is an external resource; the page loads only files in docs/")
             elif not (
                 href in HOUSE_URLS
+                or href in TAB_URLS
                 or href in SITE_LINKS.values()
                 or any(href == f"https://github.com/{OWNER}/{repo}" for repo in PUBLIC_REPOS)
             ):
@@ -488,9 +491,13 @@ def check_content(page: Page, html_text: str) -> str:
     expected = [f"https://github.com/{OWNER}/{repo}" for repo in PUBLIC_REPOS]
     if sorted(repo_links) != sorted(expected):
         fail("projects", "the project links are not exactly the public repositories")
-    for url in [*HOUSE_URLS, *SITE_LINKS.values()]:
+    for url in [*TAB_URLS, *SITE_LINKS.values()]:
         if hrefs.count(url) != 1:
             fail("links", f"{url} must be linked once")
+    # A house is linked twice: in the tab row and in the Houses section.
+    for url in HOUSE_URLS:
+        if hrefs.count(url) != 2:
+            fail("links", f"{url} must be linked twice: tab row and Houses")
     if any(kind == "h3" for kind, _ in page.headings):
         fail("projects", "the page has headings below h2; each project list is a plain list")
     found = group_lists(html_text, r'<h2 id="[\w-]+">([^<]*)</h2>\s*<ul class="projects">(.*?)</ul>')
@@ -1077,8 +1084,8 @@ def self_test() -> None:
         ("subtitle line changed", "content", [], lambda d: edit(d, "index.html", "Foundations for science", "Foundations for fun")),
         ("subtitle line before the tagline", "content", [], lambda d: edit_all(d, "index.html", (f'<p class="subtitle">{SUBTITLE}</p>', ""), ('<p class="tagline">', f'<p class="subtitle">{SUBTITLE}</p><p class="tagline">'))),
         ("subtitle line missing in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", f"{SUBTITLE}\n\n", "")),
-        ("old footer on the page", "content", [], lambda d: edit(d, "index.html", ", in spare time.", ".")),
-        ("old footer in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", ", in spare time.", ".")),
+        ("old footer on the page", "content", [], lambda d: edit(d, "index.html", ", guided by humans.", ".")),
+        ("old footer in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", ", guided by humans.", ".")),
         ("footer missing in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", f"\n\n{FOOTER}", "")),
         ("old subtitle line", "content", [], lambda d: edit(d, "index.html", "Foundations for science and engineering, built for humans today and agents tomorrow.", "A hobby: side projects, made in spare time.")),
         ("how we work comes back", "projects", [], lambda d: edit(d, "index.html", '<main id="main">', '<main id="main"><h2 id="work">How we work</h2>')),

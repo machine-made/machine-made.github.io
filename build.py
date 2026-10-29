@@ -276,6 +276,7 @@ def load_site() -> dict[str, Any]:
         ("year", int),
         ("groups", list),
         ("houses", list),
+        ("nav", list),
     ):
         need(site, key, kind, "site")
     if not FILE_NAME.fullmatch(site["name"]) or ".." in site["name"]:
@@ -362,6 +363,12 @@ def page_html(site: dict[str, Any]) -> str:
     preload = "\n".join(
         f'<link rel="preload" href="fonts/{font}" as="font" type="font/woff2" crossorigin>' for font in PRELOAD
     )
+    tabs = "\n".join(
+        f'<li><a href="index.html" aria-current="page">{esc(t["name"])}</a></li>'
+        if t.get("self")
+        else f'<li><a href="{esc(t["url"])}">{esc(t["name"])}</a></li>'
+        for t in site["nav"]
+    )
     houses = " and ".join(
         f'<a href="{esc(h["url"])}">{esc(h["name"])}</a> ({esc(h["line"])})' for h in site["houses"]
     )
@@ -379,6 +386,11 @@ def page_html(site: dict[str, Any]) -> str:
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
+<nav class="tabs wrap" aria-label="Sites">
+<ul>
+{tabs}
+</ul>
+</nav>
 <header class="masthead wrap">
 <div class="masthead-frame">
 <div class="masthead-text">

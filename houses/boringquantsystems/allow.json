@@ -1,0 +1,22 @@
+{
+  "owner": "BoringQuantSystems",
+  "groups": [
+    [
+      "Engines",
+      [
+        "nanobook"
+      ]
+    ]
+  ],
+  "site_links": {},
+  "house_urls": [
+    "https://machine-made.github.io/",
+    "https://github.com/openfluids"
+  ],
+  "tab_urls": [
+    "https://machine-made.github.io/type/"
+  ],
+  "tagline": "Boring means trustworthy.",
+  "subtitle": "A machine-made house: exact, reproducible engines for markets.",
+  "footer": "An open-source workshop. Built by agents, guided by humans."
+}

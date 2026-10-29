@@ -25,7 +25,7 @@ Foundations for science and engineering, built for humans today and agents tomor
 - [bun-do](https://github.com/machine-made/bun-do): Local-first todo app for people and AI agents: REST API and MCP server
 - [fortran-lsp](https://github.com/machine-made/fortran-lsp): Fortran language server plugin for Claude Code
 - [pi-effort](https://github.com/machine-made/pi-effort): Pi command to inspect and change thinking effort
-- [pi-rethread](https://github.com/machine-made/pi-rethread): Pi extension: the agent finishes a step, writes a letter, and the work continues in a fresh session
+- [pi-rethread](https://github.com/machine-made/pi-rethread): Pi extension: each step ends with a letter; the next starts fresh
 
 ## Type
 

@@ -14,7 +14,9 @@ from typing import Any, NoReturn
 import card
 
 ROOT = Path(__file__).resolve().parent
-DOCS = ROOT / "docs"
+# The site being built: its site.json and its docs/. --site DIR builds another house from this generator.
+SITE = ROOT
+DOCS = SITE / "docs"
 HEROES = DOCS / "heroes"
 
 CELL = 4
@@ -231,7 +233,7 @@ def hero_svg(name: str) -> str:
     )
 
 
-def root_css() -> str:
+def root_css(name: str) -> str:
     def block(mode: str) -> str:
         p = card.MODES[mode]
         return f"--bg:{p['bg']};--fg:{p['fg']};--muted:{p['muted']};--rule:{p['rule']};--red:{card.RED};"
@@ -239,7 +241,7 @@ def root_css() -> str:
     split = f"{ORIGIN_X / card.FRAME_W * 100:.3f}%"
     ratios = f"--frame-ratio:{card.FRAME_W} / {card.FRAME_H};--weave-ratio:{card.FRAME_W - ORIGIN_X} / {card.FRAME_H};"
     return (
-        f":root{{{block('light')}--split:{split};{ratios}}}\n"
+        f":root{{{block('light')}--split:{split};{ratios}--name-chars:{len(name)};}}\n"
         f"@media (prefers-color-scheme:dark){{:root{{{block('dark')}}}}}\n"
     )
 
@@ -257,7 +259,7 @@ def fail(message: str, fix: str) -> NoReturn:
 
 
 def load_site() -> dict[str, Any]:
-    path = ROOT / "site.json"
+    path = SITE / "site.json"
     try:
         site: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -306,7 +308,7 @@ def load_site() -> dict[str, Any]:
             for key in ("repo", "line"):
                 need(item, key, str, f"{where}.projects[{i}]")
             if not REPO_NAME.fullmatch(item["repo"]) or ".." in item["repo"]:
-                fail(f"{where}.projects[{i}].repo is not a repository name", "Use letters, digits, dot, dash or underscore; start with a letter or digit; no '..'.")
+                fail(f"{where}.projects[{i}].repo is not a repository name", "Use lower-case letters, digits, dot, dash or underscore; start with a letter or digit; no '..'.")
             if "site" in item:
                 need(item, "site", str, f"{where}.projects[{i}]")
                 if not item["site"].startswith("https://"):
@@ -457,14 +459,30 @@ def write(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8", newline="\n")
 
 
+def parse_site(argv: list[str]) -> Path:
+    """--site DIR: the folder that holds site.json; the page goes to DIR/docs. Default: this repository."""
+    if not argv:
+        return ROOT
+    if len(argv) != 2 or argv[0] != "--site":
+        fail(f"unknown arguments: {' '.join(argv)}", "Run python3 build.py, or python3 build.py --site DIR.")
+    site = Path(argv[1]).resolve()
+    if not (site / "site.json").is_file():
+        fail(f"{argv[1]}/site.json is missing", "Point --site at a folder that holds a site.json.")
+    return site
+
+
 def main() -> None:
+    global SITE, DOCS, HEROES
+    SITE = parse_site(sys.argv[1:])
+    DOCS = SITE / "docs"
+    HEROES = DOCS / "heroes"
     check_palette()
     site = load_site()
     style = (ROOT / "src" / "style.css").read_text(encoding="utf-8")
     name = site["name"]
     files = {
         "index.html": page_html(site),
-        "style.css": root_css() + style,
+        "style.css": root_css(name) + style,
         "mark.svg": card.mark_svg(),
         "llms.txt": llms_txt(site),
         f"heroes/{name}.svg": hero_svg(name),

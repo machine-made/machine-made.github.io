@@ -90,7 +90,7 @@
         },
         {
           "repo": "pi-rethread",
-          "line": "Pi extension: the agent finishes a step, writes a letter, and the work continues in a fresh session"
+          "line": "Pi extension: each step ends with a letter; the next starts fresh"
         }
       ]
     },

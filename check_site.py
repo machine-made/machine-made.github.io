@@ -49,8 +49,12 @@ BASE_FILES = {"index.html", "style.css", "mark.svg", "llms.txt"}
 # The two fonts of the site and their licences, served from docs/fonts/. The page loads nothing else.
 FONT_FAMILIES = {"machine-made Weft": "mm-weft", "machine-made Sans": "mm-sans"}
 FONT_FILES = {f"fonts/{slug}{end}" for slug in FONT_FAMILIES.values() for end in (".woff2", "-OFL.txt")}
-# Public sites of third parties that a licence text names. Only the licences may name them.
-LICENCE_URLS = {"fonts/mm-sans-OFL.txt": ("github.com/tokotype/PlusJakartaSans",)}
+# Public sites that a licence text names. Only the licences may name them. The font licences name
+# machine-made/type, the fonts' home, on every house site, not only on the machine-made one.
+LICENCE_URLS = {
+    "fonts/mm-sans-OFL.txt": ("github.com/tokotype/PlusJakartaSans", "github.com/machine-made/type"),
+    "fonts/mm-weft-OFL.txt": ("github.com/machine-made/type",),
+}
 RULE_PITCH = 8
 CODE_BITS = 7
 FILE_NAME = re.compile(r"[a-z0-9][a-z0-9._-]*")
@@ -843,7 +847,7 @@ def check_llms(name: str | None) -> None:
     links = re.findall(r"\]\((https://[^)]+)\)", text)
     expected = [f"https://github.com/{OWNER}/{r}" for r in PUBLIC_REPOS] + list(HOUSE_URLS) + list(SITE_LINKS.values())
     if sorted(links) != sorted(expected):
-        fail("llms", "llms.txt must list exactly the public repositories, the site link and the two houses")
+        fail("llms", "llms.txt must list exactly the public repositories, the site links and the houses")
     if name and not text.startswith(f"# {name}\n\n> {TAGLINE}\n\n{SUBTITLE}\n\n## "):
         fail("llms", "llms.txt must start with the name, the line and the subtitle line")
     if not text.endswith(f"\n\n{FOOTER}\n"):
@@ -865,6 +869,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = Args(description="Check the built site in docs/.", allow_abbrev=False)
     parser.add_argument("--deny", metavar="FILE", help="names that must not appear in the output")
     parser.add_argument("--self-test", action="store_true", help="break a copy of docs/ and check the breaks are caught")
+    parser.add_argument("--site", metavar="DIR", help="check another house: DIR holds site.json, allow.json and docs/")
     return parser.parse_args(argv)
 
 
@@ -1209,9 +1214,30 @@ def self_test() -> None:
         report(cli_fails(["--deny"], "FAIL args:"), "--deny without a file")
         report(cli_fails(["--deny", missing], "FAIL deny:"), "--deny with a missing file")
         report(cli_fails(["--no-such-flag"], "FAIL args:"), "an unknown flag")
+        report(cli_fails(["--site", missing], "FAIL args:"), "--site with no allow.json")
     if bad:
         sys.exit(1)
     print(f"SELF-TEST OK ({total} cases)")
+
+
+def load_allow(folder: str) -> None:
+    """Point the checks at another house. Its allow.json is the public list, kept apart from site.json
+    on purpose: the page passes only when the two agree."""
+    global ROOT, DOCS, OWNER, GROUPS, PUBLIC_REPOS, SITE_LINKS, HOUSE_URLS, TAB_URLS, TAGLINE, SUBTITLE, FOOTER
+    root = Path(folder).resolve()
+    try:
+        allow = json.loads((root / "allow.json").read_text(encoding="utf-8"))
+        OWNER = str(allow["owner"])
+        GROUPS = tuple((str(title), tuple(str(r) for r in repos)) for title, repos in allow["groups"])
+        SITE_LINKS = {str(k): str(v) for k, v in allow.get("site_links", {}).items()}
+        HOUSE_URLS = tuple(str(u) for u in allow["house_urls"])
+        TAB_URLS = tuple(str(u) for u in allow["tab_urls"])
+        TAGLINE, SUBTITLE, FOOTER = str(allow["tagline"]), str(allow["subtitle"]), str(allow["footer"])
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        print(f"FAIL args: {folder}/allow.json is missing or incomplete ({exc.__class__.__name__})")
+        sys.exit(2)
+    PUBLIC_REPOS = tuple(repo for _, repos in GROUPS for repo in repos)
+    ROOT, DOCS = root, root / "docs"
 
 
 def main() -> None:
@@ -1219,6 +1245,8 @@ def main() -> None:
     if args.self_test:
         self_test()
         return
+    if args.site:
+        load_allow(args.site)
     found = run_checks(load_deny(args.deny))
     if found:
         print("\n".join(found))

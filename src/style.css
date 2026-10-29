@@ -196,6 +196,7 @@ p {
 }
 
 .masthead-text {
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   gap: var(--sp-6);
@@ -207,10 +208,12 @@ p {
   height: 3.5rem;
 }
 
+/* Weft sets 0.75 em a character, 0.67 em with the -0.08 em tracking. A long name shrinks to fit its
+   column instead of running into the weave; a short name keeps the size the scale gives it. */
 .masthead h1 {
   font-family: var(--mono);
   font-weight: 500;
-  font-size: clamp(1.9rem, 9vw, 3rem);
+  font-size: min(clamp(1.9rem, 9vw, 3rem), calc(95cqi / (var(--name-chars) * 0.67)));
   line-height: 1;
   letter-spacing: -0.08em;
   /* FRAG 12: ink-trap notches, the body-safe range of Weft. Only the name has it. */
@@ -267,7 +270,7 @@ p {
   }
 
   .masthead h1 {
-    font-size: clamp(1.5rem, 3.4vw, 3.25rem);
+    font-size: min(clamp(1.5rem, 3.4vw, 3.25rem), calc(95cqi / (var(--name-chars) * 0.67)));
   }
 
   .tagline {

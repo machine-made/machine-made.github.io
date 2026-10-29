@@ -3,9 +3,15 @@
 # Usage: sh publish.sh HOUSE PAGES_REPO_DIR   (HOUSE is a folder name in houses/)
 # Run gate.sh first. Commit and push in the Pages repository through a pull request.
 set -eu
-cd "$(dirname "$0")"
 house=${1:?name a house in houses/}
 target=${2:?name the Pages repository folder}
+# Resolve the target before moving into the generator, so a relative path means the caller's folder.
+target=$(cd "$target" && pwd)
+cd "$(dirname "$0")"
+if [ "$target" = "$(pwd)" ]; then
+  echo "the target is this generator repository; name the house's own Pages repository"
+  exit 2
+fi
 [ -f "houses/$house/site.json" ] || { echo "houses/$house/site.json is missing"; exit 2; }
 [ -d "$target/.git" ] || { echo "$target is not a git repository"; exit 2; }
 work=$(mktemp -d "${TMPDIR:-/tmp}/mm-publish.XXXXXX")

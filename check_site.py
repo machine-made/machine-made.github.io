@@ -34,14 +34,14 @@ OWNER = "machine-made"
 GROUPS = (
     ("Science and numerics", ("minuit2-rs", "libsvm-rs", "nebula-quanta", "dynachaos", "chaos-atlas", "nanochat-rs")),
     ("Desktop and editor tools", ("pdf-next", "vscode-pdf-next", "vscode-diff-next", "homebrew-tap")),
-    ("Tools for agents", ("bun-do", "fortran-lsp", "pi-effort")),
+    ("Tools for agents", ("bun-do", "fortran-lsp", "pi-effort", "pi-rethread")),
     ("Type", ("type",)),
 )
 PUBLIC_REPOS = tuple(repo for _, repos in GROUPS for repo in repos)
 SITE_LINKS = {"chaos-atlas": "https://machine-made.github.io/chaos-atlas/"}
 HOUSE_URLS = ("https://github.com/openfluids", "https://github.com/BoringQuantSystems")
-TAGLINE = "Made by machines. Proven for machines."
-SUBTITLE = "A lab run by machines."
+TAGLINE = "Human vision. Machine-made."
+SUBTITLE = "Foundations for science and engineering, built for humans today and agents tomorrow."
 FOOTER = "Made by agents. Directed by a person, in spare time."
 BASE_FILES = {"index.html", "style.css", "mark.svg", "llms.txt"}
 # The two fonts of the site and their licences, served from docs/fonts/. The page loads nothing else.
@@ -1074,13 +1074,13 @@ def self_test() -> None:
         ("hero file missing", "files", [], lambda d: (d / hero).unlink()),
         ("non-ASCII in llms.txt", "voice", [], lambda d: edit(d, "llms.txt", "## Houses", "caf\u00e9\n\n## Houses")),
         ("subtitle line missing", "content", [], lambda d: edit(d, "index.html", f'<p class="subtitle">{SUBTITLE}</p>', "")),
-        ("subtitle line changed", "content", [], lambda d: edit(d, "index.html", "A lab", "A job")),
+        ("subtitle line changed", "content", [], lambda d: edit(d, "index.html", "Foundations for science", "Foundations for fun")),
         ("subtitle line before the tagline", "content", [], lambda d: edit_all(d, "index.html", (f'<p class="subtitle">{SUBTITLE}</p>', ""), ('<p class="tagline">', f'<p class="subtitle">{SUBTITLE}</p><p class="tagline">'))),
         ("subtitle line missing in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", f"{SUBTITLE}\n\n", "")),
         ("old footer on the page", "content", [], lambda d: edit(d, "index.html", ", in spare time.", ".")),
         ("old footer in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", ", in spare time.", ".")),
         ("footer missing in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", f"\n\n{FOOTER}", "")),
-        ("old subtitle line", "content", [], lambda d: edit(d, "index.html", "A lab run by machines.", "A hobby: side projects, made in spare time.")),
+        ("old subtitle line", "content", [], lambda d: edit(d, "index.html", "Foundations for science and engineering, built for humans today and agents tomorrow.", "A hobby: side projects, made in spare time.")),
         ("how we work comes back", "projects", [], lambda d: edit(d, "index.html", '<main id="main">', '<main id="main"><h2 id="work">How we work</h2>')),
         ("a group heading is renamed", "projects", [], lambda d: edit(d, "index.html", ">Tools for agents<", ">Tools<")),
         ("two projects swap groups", "projects", [], lambda d: edit_all(d, "index.html", (f'{OWNER}/bun-do"', f'{OWNER}/tmp"'), (f'{OWNER}/pdf-next"', f'{OWNER}/bun-do"'), (f'{OWNER}/tmp"', f'{OWNER}/pdf-next"'))),

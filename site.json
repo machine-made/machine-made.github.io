@@ -1,7 +1,7 @@
 {
   "name": "machine-made",
-  "tagline": "Made by machines. Proven for machines.",
-  "subtitle": "A lab run by machines.",
+  "tagline": "Human vision. Machine-made.",
+  "subtitle": "Foundations for science and engineering, built for humans today and agents tomorrow.",
   "owner": "machine-made",
   "groups": [
     {
@@ -69,6 +69,10 @@
         {
           "repo": "pi-effort",
           "line": "Pi command to inspect and change thinking effort"
+        },
+        {
+          "repo": "pi-rethread",
+          "line": "Pi extension: the agent finishes a step, writes a letter, and the work continues in a fresh session"
         }
       ]
     },

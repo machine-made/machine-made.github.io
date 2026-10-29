@@ -1,0 +1,31 @@
+{
+  "owner": "openfluids",
+  "groups": [
+    [
+      "Analysis",
+      [
+        "openmodalpy",
+        "dsgbr",
+        "fftkit"
+      ]
+    ],
+    [
+      "Runs and frames",
+      [
+        "hpckit",
+        "quadros"
+      ]
+    ]
+  ],
+  "site_links": {},
+  "house_urls": [
+    "https://machine-made.github.io/",
+    "https://github.com/BoringQuantSystems"
+  ],
+  "tab_urls": [
+    "https://machine-made.github.io/type/"
+  ],
+  "tagline": "Open tools for fluid flows.",
+  "subtitle": "A machine-made house: from the run to the result.",
+  "footer": "An open-source workshop. Built by agents, guided by humans."
+}

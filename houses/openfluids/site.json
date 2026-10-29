@@ -1,0 +1,70 @@
+{
+  "name": "openfluids",
+  "tagline": "Open tools for fluid flows.",
+  "subtitle": "A machine-made house: from the run to the result.",
+  "owner": "openfluids",
+  "nav": [
+    {
+      "name": "machine-made",
+      "url": "https://machine-made.github.io/"
+    },
+    {
+      "name": "openfluids",
+      "self": true
+    },
+    {
+      "name": "fonts",
+      "url": "https://machine-made.github.io/type/"
+    },
+    {
+      "name": "BoringQuantSystems",
+      "url": "https://github.com/BoringQuantSystems"
+    }
+  ],
+  "groups": [
+    {
+      "title": "Analysis",
+      "projects": [
+        {
+          "repo": "openmodalpy",
+          "line": "Modal decompositions (POD, DMD, SPOD and more) in one Python workflow"
+        },
+        {
+          "repo": "dsgbr",
+          "line": "Peak detection for noisy, sloped power spectra, benchmarked against SciPy"
+        },
+        {
+          "repo": "fftkit",
+          "line": "One FFT API over many backends, with correctness checks and benchmarks"
+        }
+      ]
+    },
+    {
+      "title": "Runs and frames",
+      "projects": [
+        {
+          "repo": "hpckit",
+          "line": "HPC work over SSH and Slurm: run packets, receipts, artifact sync"
+        },
+        {
+          "repo": "quadros",
+          "line": "CFD snapshots rendered into checked frames and videos"
+        }
+      ]
+    }
+  ],
+  "houses": [
+    {
+      "name": "machine-made",
+      "line": "the umbrella over every house",
+      "url": "https://machine-made.github.io/"
+    },
+    {
+      "name": "BoringQuantSystems",
+      "line": "deterministic quant engines",
+      "url": "https://github.com/BoringQuantSystems"
+    }
+  ],
+  "footer": "An open-source workshop. Built by agents, guided by humans.",
+  "year": 2026
+}

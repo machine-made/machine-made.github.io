@@ -59,6 +59,27 @@ if [ -n "${MM_DENY_FILE:-}" ]; then
 else
   python3 check_site.py
 fi
+# Every house in houses/ builds from this generator: twice, the same, then its own checks.
+for house in houses/*/; do
+  copy=$(mktemp -d "${TMPDIR:-/tmp}/mm-house.XXXXXX")
+  cp "$house/site.json" "$house/allow.json" "$copy/"
+  python3 build.py --site "$copy" > /dev/null
+  hashes "$copy/docs" > "$first"
+  python3 build.py --site "$copy" > /dev/null
+  hashes "$copy/docs" > "$second"
+  if ! cmp -s "$first" "$second"; then
+    echo "the two builds of $house differ"
+    rm -rf "$copy"
+    exit 1
+  fi
+  if ! python3 check_site.py --site "$copy"; then
+    echo "the house site $house fails its checks"
+    rm -rf "$copy"
+    exit 1
+  fi
+  rm -rf "$copy"
+done
+echo "HOUSES OK"
 # -I skips the font files: binary data is not copy. check_site.py reads the licences.
 if grep -rniIE '\$[0-9]|tokens' docs/; then
   echo "grep found a forbidden word"

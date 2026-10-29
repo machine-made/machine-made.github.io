@@ -1,8 +1,26 @@
 {
   "name": "machine-made",
-  "tagline": "Made by machines. Proven for machines.",
-  "subtitle": "A lab run by machines.",
+  "tagline": "Human vision. Machine-made.",
+  "subtitle": "Foundations for science and engineering, built for humans today and agents tomorrow.",
   "owner": "machine-made",
+  "nav": [
+    {
+      "name": "machine-made",
+      "self": true
+    },
+    {
+      "name": "openfluids",
+      "url": "https://github.com/openfluids"
+    },
+    {
+      "name": "fonts",
+      "url": "https://machine-made.github.io/type/"
+    },
+    {
+      "name": "BoringQuantSystems",
+      "url": "https://github.com/BoringQuantSystems"
+    }
+  ],
   "groups": [
     {
       "title": "Science and numerics",
@@ -69,6 +87,10 @@
         {
           "repo": "pi-effort",
           "line": "Pi command to inspect and change thinking effort"
+        },
+        {
+          "repo": "pi-rethread",
+          "line": "Pi extension: each step ends with a letter; the next starts fresh"
         }
       ]
     },
@@ -80,6 +102,24 @@
           "line": "machine-made Weft and machine-made Sans: typefaces made by code"
         }
       ]
+    }
+  ],
+  "papers": [
+    {
+      "status": "under review",
+      "title": "linstabpy: open-source compressible stability and resolvent analysis"
+    },
+    {
+      "status": "in preparation",
+      "title": "LoomBench: a numerical benchmark for coding agents, with hidden oracles, timings and an audit trail"
+    },
+    {
+      "status": "in preparation",
+      "title": "From Locking to Collective Chaos: A Reproducible Review of Kaneko's Circle Maps, Torus Instabilities, Coupled Map Lattices and Globally Coupled Maps"
+    },
+    {
+      "status": "in preparation",
+      "title": "OpenModalPy: modal decomposition of spatiotemporal data"
     }
   ],
   "houses": [
@@ -94,6 +134,6 @@
       "url": "https://github.com/BoringQuantSystems"
     }
   ],
-  "footer": "Made by agents. Directed by a person, in spare time.",
+  "footer": "An open-source workshop. Built by agents, guided by humans.",
   "year": 2026
 }

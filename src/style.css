@@ -157,6 +157,35 @@ p {
   text-wrap: pretty;
 }
 
+.tabs {
+  padding-top: var(--gutter);
+}
+
+.tabs ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-4);
+  margin: 0;
+  padding: 0 0 var(--sp-2);
+  list-style: none;
+  border-bottom: 1px solid var(--rule);
+}
+
+.tabs a {
+  font-family: var(--mono);
+  font-size: var(--s-1);
+  letter-spacing: var(--mono-track-small);
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.tabs a:hover,
+.tabs a[aria-current="page"] {
+  color: var(--fg);
+  text-decoration: underline;
+  text-underline-offset: 0.3em;
+}
+
 .masthead {
   padding-top: var(--gutter);
 }
@@ -167,6 +196,7 @@ p {
 }
 
 .masthead-text {
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   gap: var(--sp-6);
@@ -178,10 +208,12 @@ p {
   height: 3.5rem;
 }
 
+/* Weft sets 0.75 em a character, 0.67 em with the -0.08 em tracking. A long name shrinks to fit its
+   column instead of running into the weave; a short name keeps the size the scale gives it. */
 .masthead h1 {
   font-family: var(--mono);
   font-weight: 500;
-  font-size: clamp(1.9rem, 9vw, 3rem);
+  font-size: min(clamp(1.9rem, 9vw, 3rem), calc(95cqi / (var(--name-chars) * 0.67)));
   line-height: 1;
   letter-spacing: -0.08em;
   /* FRAG 12: ink-trap notches, the body-safe range of Weft. Only the name has it. */
@@ -238,7 +270,7 @@ p {
   }
 
   .masthead h1 {
-    font-size: clamp(1.5rem, 3.4vw, 3.25rem);
+    font-size: min(clamp(1.5rem, 3.4vw, 3.25rem), calc(95cqi / (var(--name-chars) * 0.67)));
   }
 
   .tagline {
@@ -285,31 +317,43 @@ p {
 }
 
 .split > p,
-.projects p {
+.projects p,
+.papers p {
   max-width: var(--measure);
 }
 
-.projects li {
+.projects li,
+.papers li {
   display: grid;
   position: relative;
   gap: var(--sp-1);
   padding-block: var(--sp-3);
 }
 
-.projects li:first-child {
+.projects li:first-child,
+.papers li:first-child {
   padding-top: 0;
 }
 
-.projects li + li {
+.projects li + li,
+.papers li + li {
   border-top: 1px solid var(--rule);
 }
 
 @media (min-width: 1000px) {
-  .projects li {
+  .projects li,
+  .papers li {
     grid-template-columns: 13rem minmax(0, 1fr);
     gap: var(--sp-4);
     align-items: baseline;
   }
+}
+
+.papers .status {
+  font-family: var(--mono);
+  font-size: var(--s-1);
+  letter-spacing: var(--mono-track-small);
+  color: var(--muted);
 }
 
 .projects a {

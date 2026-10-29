@@ -14,6 +14,9 @@ sh gate.sh              # build twice and compare, self-tests, check, forbidden 
 python3 shots.py        # screenshots in shots/, light and dark; needs Playwright
 python3 brand.py --fonts fonts   # the profile hero and the avatar in brand/; needs Playwright, fontTools, brotli
 MM_FONTS=fonts sh gate.sh        # the gate, with brand/ built twice and compared
+python3 build.py --site houses/openfluids          # a house site, into houses/openfluids/docs/
+python3 check_site.py --site houses/openfluids     # its checks, against its own allow.json
+sh publish.sh openfluids ../openfluids.github.io   # build a house into its Pages repository
 python3 fonts.py --type DIR      # fonts/ from a checkout of machine-made/type; needs fontTools, brotli
 ```
 
@@ -37,6 +40,16 @@ deterministic: the same source tree gives the same bytes.
 | `shots.py` | Screenshots at 1440 px and 375 px, the scroll check and the line-length check. Writes `shots/` |
 | `DESIGN.md` | The grid, the type, the colour, the mark, the weave and the rows of dots |
 | `docs/` | The built site. Do not edit by hand |
+| `houses/<name>/site.json` | A house site from this same generator: openfluids, boringquantsystems |
+| `houses/<name>/allow.json` | That house's public list, kept apart from its `site.json`: the checks pass only when both agree |
+| `publish.sh` | Builds one house into the `docs/` of its own Pages repository. `gate.sh` builds and checks every house |
+
+## Houses
+
+One generator, one look, one tab row for every house. A house site is its `site.json` and its
+`allow.json` in `houses/`. `gate.sh` builds each house twice, compares the bytes and runs its
+checks. `publish.sh` writes the built site into the house's own Pages repository; that change
+lands there through a pull request.
 
 ## Fonts
 

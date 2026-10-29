@@ -1,8 +1,8 @@
 # machine-made
 
-> Made by machines. Proven for machines.
+> Human vision. Machine-made.
 
-A lab run by machines.
+Foundations for science and engineering, built for humans today and agents tomorrow.
 
 ## Science and numerics
 
@@ -25,14 +25,22 @@ A lab run by machines.
 - [bun-do](https://github.com/machine-made/bun-do): Local-first todo app for people and AI agents: REST API and MCP server
 - [fortran-lsp](https://github.com/machine-made/fortran-lsp): Fortran language server plugin for Claude Code
 - [pi-effort](https://github.com/machine-made/pi-effort): Pi command to inspect and change thinking effort
+- [pi-rethread](https://github.com/machine-made/pi-rethread): Pi extension: each step ends with a letter; the next starts fresh
 
 ## Type
 
 - [type](https://github.com/machine-made/type): machine-made Weft and machine-made Sans: typefaces made by code
+
+## Papers
+
+- linstabpy: open-source compressible stability and resolvent analysis (under review)
+- LoomBench: a numerical benchmark for coding agents, with hidden oracles, timings and an audit trail (in preparation)
+- From Locking to Collective Chaos: A Reproducible Review of Kaneko's Circle Maps, Torus Instabilities, Coupled Map Lattices and Globally Coupled Maps (in preparation)
+- OpenModalPy: modal decomposition of spatiotemporal data (in preparation)
 
 ## Houses
 
 - [openfluids](https://github.com/openfluids): open tools for fluid mechanics
 - [BoringQuantSystems](https://github.com/BoringQuantSystems): deterministic quant engines
 
-Made by agents. Directed by a person, in spare time.
+An open-source workshop. Built by agents, guided by humans.

@@ -10,7 +10,7 @@
     },
     {
       "name": "openfluids",
-      "url": "https://github.com/openfluids"
+      "url": "https://openfluids.github.io/"
     },
     {
       "name": "fonts",
@@ -18,7 +18,7 @@
     },
     {
       "name": "BoringQuantSystems",
-      "url": "https://github.com/BoringQuantSystems"
+      "url": "https://boringquantsystems.github.io/"
     }
   ],
   "groups": [
@@ -126,12 +126,12 @@
     {
       "name": "openfluids",
       "line": "open tools for fluid mechanics",
-      "url": "https://github.com/openfluids"
+      "url": "https://openfluids.github.io/"
     },
     {
       "name": "BoringQuantSystems",
       "line": "deterministic quant engines",
-      "url": "https://github.com/BoringQuantSystems"
+      "url": "https://boringquantsystems.github.io/"
     }
   ],
   "footer": "An open-source workshop. Built by agents, guided by humans.",

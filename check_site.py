@@ -39,7 +39,7 @@ GROUPS = (
 )
 PUBLIC_REPOS = tuple(repo for _, repos in GROUPS for repo in repos)
 SITE_LINKS = {"chaos-atlas": "https://machine-made.github.io/chaos-atlas/"}
-HOUSE_URLS = ("https://github.com/openfluids", "https://github.com/BoringQuantSystems")
+HOUSE_URLS = ("https://openfluids.github.io/", "https://boringquantsystems.github.io/")
 # The tab row at the top: the other sites of the houses.
 TAB_URLS = ("https://machine-made.github.io/type/",)
 TAGLINE = "Human vision. Machine-made."

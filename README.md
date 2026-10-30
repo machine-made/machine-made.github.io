@@ -72,7 +72,7 @@ same bytes.
 
 ## Rules
 
-- The page shows the name, the line, the subtitle line, the public projects in three groups and the two houses.
+- The page shows the name, the line, the subtitle line, the public projects.
 - Only public repositories are named or linked. A new public project needs an entry in
   `site.json` and in `PUBLIC_REPOS` in `check_site.py`.
 - `check_site.py --deny FILE`, or `MM_DENY_FILE=FILE sh gate.sh`, also rejects any name listed

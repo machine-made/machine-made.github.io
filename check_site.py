@@ -47,7 +47,7 @@ REDIRECTS = {
 HOUSE_URLS = ("https://openfluids.github.io/", "https://boringquantsystems.github.io/")
 # The tab row at the top: the other sites of the houses.
 TAB_URLS = ("https://machine-made.github.io/type/",)
-TAGLINE = "Human vision. Machine-made."
+TAGLINE = "Made by machines. Proven for machines."
 SUBTITLE = "Foundations for science and engineering, built for humans today and agents tomorrow."
 FOOTER = "An open-source workshop. Built by agents, guided by humans."
 # The papers the page may list, as (status, title). No link until a paper is public.

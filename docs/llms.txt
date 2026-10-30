@@ -1,6 +1,6 @@
 # machine-made
 
-> Human vision. Machine-made.
+> Made by machines. Proven for machines.
 
 Foundations for science and engineering, built for humans today and agents tomorrow.
 

@@ -32,13 +32,18 @@ DOCS = ROOT / "docs"
 
 OWNER = "machine-made"
 GROUPS = (
-    ("Science and numerics", ("minuit2-rs", "libsvm-rs", "nebula-quanta", "dynachaos", "chaos-atlas", "nanochat-rs")),
+    ("Science and numerics", ("minuit2-rs", "libsvm-rs", "nebula-quanta", "nanochat-rs")),
     ("Desktop and editor tools", ("pdf-next", "vscode-pdf-next", "vscode-diff-next", "homebrew-tap")),
     ("Tools for agents", ("bun-do", "fortran-lsp", "pi-effort", "pi-rethread")),
     ("Type", ("type",)),
 )
 PUBLIC_REPOS = tuple(repo for _, repos in GROUPS for repo in repos)
-SITE_LINKS = {"chaos-atlas": "https://machine-made.github.io/chaos-atlas/"}
+SITE_LINKS: dict[str, str] = {}
+# Moved repositories: docs/<name>/index.html forwards the old path to the new home.
+REDIRECTS = {
+    "chaos-atlas": "https://openfluids.github.io/chaos-atlas/",
+    "dynachaos": "https://github.com/openfluids/dynachaos",
+}
 HOUSE_URLS = ("https://openfluids.github.io/", "https://boringquantsystems.github.io/")
 # The tab row at the top: the other sites of the houses.
 TAB_URLS = ("https://machine-made.github.io/type/",)
@@ -333,8 +338,27 @@ def section_titles() -> list[str]:
     return [title for title, _ in GROUPS] + (["Papers"] if PAPERS else []) + ["Houses"]
 
 
+def redirect_page(name: str, url: str) -> str:
+    return (
+        '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+        f'<title>{name} has moved</title>\n<meta http-equiv="refresh" content="0; url={url}">\n'
+        f'<link rel="canonical" href="{url}">\n</head>\n<body>\n<p><a href="{url}">{name} has moved</a></p>\n'
+        "</body>\n</html>\n"
+    )
+
+
+def check_redirects() -> None:
+    for name, url in REDIRECTS.items():
+        if not url.startswith("https://"):
+            fail("redirects", f"{name} must forward to an https URL")
+        elif read(f"{name}/index.html") != redirect_page(name, url):
+            fail("redirects", f"docs/{name}/index.html must be the plain redirect page to {url}")
+
+
 def check_files(name: str | None) -> None:
     wanted = BASE_FILES | FONT_FILES | {f"rules/{slug(title)}.svg" for title in rule_titles(name)}
+    wanted |= {f"{folder}/index.html" for folder in REDIRECTS}
     if name:
         wanted.add(f"heroes/{name}.svg")
     present = {p.relative_to(DOCS).as_posix() for p in DOCS.rglob("*") if p.is_file()}
@@ -546,6 +570,8 @@ def check_content(page: Page, html_text: str) -> str:
     )
     if [(html.unescape(s), html.unescape(t)) for s, t in shown_papers] != list(PAPERS):
         fail("papers", "the Papers list must be exactly the allowed papers, in order, with their status")
+    if len(re.findall(r'<a class="site"', html_text)) != len(SITE_LINKS):
+        fail("projects", "the page has a site link that the allowed list does not name")
     for repo, url in SITE_LINKS.items():
         if not re.search(rf'<a href="https://github.com/{OWNER}/{repo}">{repo}</a><p>[^<]*<a class="site" href="{re.escape(url)}">site</a></p>', html_text):
             fail("projects", f"{repo} needs a second link labelled site to {url}")
@@ -576,13 +602,14 @@ def decoded(source: str) -> str:
 
 def check_leaks(visible: str, deny: list[str]) -> None:
     house_hosts = {u.split("//", 1)[1] for u in HOUSE_URLS}
+    forwards = {f"{folder}/index.html": url.split("//", 1)[1] for folder, url in REDIRECTS.items()}
     for name, raw in emitted(visible):
         if not raw.isascii():
             fail("voice", f"docs/{name} has characters that are not plain ASCII")
         # An svg or a page can spell a name with &#x..; references. Match the raw and the decoded text.
         source = raw + "\n" + decoded(raw)
         for match in GITHUB.findall(source):
-            ok = match in house_hosts or match in LICENCE_URLS.get(name, ()) or any(
+            ok = match in house_hosts or match == forwards.get(name) or match in LICENCE_URLS.get(name, ()) or any(
                 match == f"github.com/{OWNER}/{repo}" for repo in PUBLIC_REPOS
             )
             if not ok:
@@ -932,6 +959,7 @@ def run_checks(deny: list[str]) -> list[str]:
     del failures[:]
     name = site_name()
     check_files(name)
+    check_redirects()
     html_text = read("index.html")
     if html_text:
         page = Page()
@@ -1060,6 +1088,42 @@ def cli_fails(args: list[str], prefix: str) -> bool:
     return done.returncode == 2 and len(lines) == 1 and lines[0].startswith(prefix) and not done.stderr
 
 
+def site_links_hold() -> list[str]:
+    """Build a site with one project site link and run the site-link checks on it: it passes, and each
+    way of breaking the link fails. No real project needs a site link for this."""
+    global DOCS, SITE_LINKS
+    real_docs, real_links = DOCS, SITE_LINKS
+    repo, url = "minuit2-rs", "https://machine-made.github.io/minuit2-rs/"
+    problems: list[str] = []
+    data = json.loads((ROOT / "site.json").read_text(encoding="utf-8"))
+    groups = data["groups"]
+    next(p for g in groups for p in g["projects"] if p["repo"] == repo)["site"] = url
+    breaks: list[tuple[str, Callable[[Path], object]]] = [
+        ("site link missing", lambda d: edit(d, "index.html", f' <a class="site" href="{url}">site</a>', "")),
+        ("site link on another host", lambda d: edit(d, "index.html", url, "https://example.net/minuit2-rs/")),
+        ("site link to another path", lambda d: edit(d, "index.html", url, "https://machine-made.github.io/other/")),
+        ("second site link", lambda d: edit(d, "index.html", "</ul>", f'<li><a class="site" href="{url}">x</a></li></ul>')),
+    ]
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "site"
+        if site_copy(root, {"groups": groups}).returncode != 0:
+            return ["the site-link fixture does not build"]
+        SITE_LINKS = {repo: url}
+        try:
+            for title, mutate in [("clean fixture", lambda d: None), *breaks]:
+                DOCS = Path(tmp) / "case" / "docs"
+                shutil.rmtree(DOCS.parent, ignore_errors=True)
+                shutil.copytree(root / "docs", DOCS)
+                mutate(DOCS)
+                found = run_checks([])
+                caught = not found if title == "clean fixture" else any(line.startswith(("FAIL links:", "FAIL projects:")) for line in found)
+                if not caught:
+                    problems.append(f"site-link fixture, {title}: got {found[:2]}")
+        finally:
+            DOCS, SITE_LINKS = real_docs, real_links
+    return problems
+
+
 Case = tuple[str, str | None, list[str], Callable[[Path], object]]
 
 
@@ -1140,9 +1204,14 @@ def self_test() -> None:
         ("a group heading is renamed", "projects", [], lambda d: edit(d, "index.html", ">Tools for agents<", ">Tools<")),
         ("two projects swap groups", "projects", [], lambda d: edit_all(d, "index.html", (f'{OWNER}/bun-do"', f'{OWNER}/tmp"'), (f'{OWNER}/pdf-next"', f'{OWNER}/bun-do"'), (f'{OWNER}/tmp"', f'{OWNER}/pdf-next"'))),
         ("a group heading is renamed in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", "## Tools for agents", "## Tools")),
-        ("site link missing", "links", [], lambda d: edit(d, "index.html", ' <a class="site" href="https://machine-made.github.io/chaos-atlas/">site</a>', "")),
-        ("site link on another host", "links", [], lambda d: edit(d, "index.html", "https://machine-made.github.io/chaos-atlas/", "https://example.net/chaos-atlas/")),
-        ("site link to another path", "links", [], lambda d: edit(d, "index.html", "https://machine-made.github.io/chaos-atlas/", "https://machine-made.github.io/other/")),
+        ("unexpected site link", "links", [], lambda d: edit(d, "index.html", "against ROOT</p>", 'against ROOT <a class="site" href="https://machine-made.github.io/chaos-atlas/">site</a></p>')),
+        ("unexpected site link on another host", "links", [], lambda d: edit(d, "index.html", "against ROOT</p>", 'against ROOT <a class="site" href="https://example.net/">site</a></p>')),
+        ("moved repository listed again", "projects", [], lambda d: edit(d, "index.html", "</ul>", f'<li><a href="https://github.com/{OWNER}/chaos-atlas">chaos-atlas</a><p>x</p></li></ul>')),
+        ("redirect page missing", "files", [], lambda d: (d / "chaos-atlas" / "index.html").unlink()),
+        ("redirect page extra", "files", [], lambda d: (d / "other").mkdir() or (d / "other" / "index.html").write_text(redirect_page("other", "https://example.net/"))),
+        ("redirect to an unlisted target", "redirects", [], lambda d: (d / "chaos-atlas" / "index.html").write_text(redirect_page("chaos-atlas", "https://example.net/chaos-atlas/"))),
+        ("redirect refresh differs from canonical", "redirects", [], lambda d: edit(d, "dynachaos/index.html", 'content="0; url=https://github.com/openfluids/dynachaos"', 'content="0; url=https://example.net/"')),
+        ("redirect page with a script", "redirects", [], lambda d: edit(d, "dynachaos/index.html", "</head>", "<script>1</script></head>")),
         ("accent in a fill attribute", "accent", [], lambda d: edit(d, hero, '<rect class="g"', '<rect fill="#0000ff" class="g"')),
         ("accent in a style attribute", "accent", [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<path style="fill:#00f" class="k"')),
         ("accent in stop-color", "accent", [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<path stop-color="#00ff00" class="k"')),
@@ -1247,6 +1316,8 @@ def self_test() -> None:
             report(build_rejects(changes), f"build.py accepted {str(changes)[:60]}")
         for bad_year in (True, False, "2026", 2026.0, None):
             report(build_rejects({"year": bad_year}), f"build.py accepted the year {bad_year!r}")
+        for problem in site_links_hold():
+            report(False, problem)
         report(renamed_site_passes("loom-x"), "a site under another name does not pass the checks")
         report(build_needs_fonts(), "build.py builds without the fonts in fonts/")
         report(tagline_keeps_its_tail(), "build.py cuts a tagline whose last part has no end mark")
@@ -1266,13 +1337,14 @@ def self_test() -> None:
 def load_allow(folder: str) -> None:
     """Point the checks at another house. Its allow.json is the public list, kept apart from site.json
     on purpose: the page passes only when the two agree."""
-    global ROOT, DOCS, OWNER, GROUPS, PUBLIC_REPOS, SITE_LINKS, HOUSE_URLS, TAB_URLS, TAGLINE, SUBTITLE, FOOTER, PAPERS
+    global ROOT, DOCS, OWNER, GROUPS, PUBLIC_REPOS, SITE_LINKS, REDIRECTS, HOUSE_URLS, TAB_URLS, TAGLINE, SUBTITLE, FOOTER, PAPERS
     root = Path(folder).resolve()
     try:
         allow = json.loads((root / "allow.json").read_text(encoding="utf-8"))
         OWNER = str(allow["owner"])
         GROUPS = tuple((str(title), tuple(str(r) for r in repos)) for title, repos in allow["groups"])
         SITE_LINKS = {str(k): str(v) for k, v in allow.get("site_links", {}).items()}
+        REDIRECTS = {str(k): str(v) for k, v in allow.get("redirects", {}).items()}
         HOUSE_URLS = tuple(str(u) for u in allow["house_urls"])
         TAB_URLS = tuple(str(u) for u in allow["tab_urls"])
         TAGLINE, SUBTITLE, FOOTER = str(allow["tagline"]), str(allow["subtitle"]), str(allow["footer"])

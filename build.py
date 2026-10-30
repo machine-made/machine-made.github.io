@@ -330,6 +330,15 @@ def load_site() -> dict[str, Any]:
             fail(f"houses[{i}].url is not https", "Use an https URL.")
     if len(set(repos)) != len(repos):
         fail("two projects share one repo name", "Remove the duplicate from the groups.")
+    redirects = site.get("redirects", {})
+    if not isinstance(redirects, dict) or not all(
+        isinstance(k, str) and isinstance(v, str) and FILE_NAME.fullmatch(k) and ".." not in k
+        and v.startswith("https://") and v.isascii() and not set(v) & set("<>\"' ")
+        for k, v in redirects.items()
+    ):
+        fail("site.redirects must map a folder name to an https URL", "Use names like chaos-atlas and plain https URLs.")
+    if set(redirects) & ({"fonts", "heroes", "rules"} | set(repos)):
+        fail("a redirect folder clashes with a site folder or a project", "Pick another folder name.")
     return site
 
 
@@ -457,6 +466,23 @@ def page_html(site: dict[str, Any]) -> str:
 """
 
 
+def redirect_html(name: str, url: str) -> str:
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{esc(name)} has moved</title>
+<meta http-equiv="refresh" content="0; url={esc(url)}">
+<link rel="canonical" href="{esc(url)}">
+</head>
+<body>
+<p><a href="{esc(url)}">{esc(name)} has moved</a></p>
+</body>
+</html>
+"""
+
+
 def llms_txt(site: dict[str, Any]) -> str:
     def entry(p: dict[str, str]) -> str:
         extra = f" ([site]({p['site']}))" if "site" in p else ""
@@ -520,6 +546,8 @@ def main() -> None:
         "llms.txt": llms_txt(site),
         f"heroes/{name}.svg": hero_svg(name),
     }
+    for folder, url in site.get("redirects", {}).items():
+        files[f"{folder}/index.html"] = redirect_html(folder, url)
     papers = ["Papers"] if site.get("papers") else []
     for title in [g["title"] for g in site["groups"]] + papers + ["Houses", name]:
         files[f"rules/{slug(title)}.svg"] = card.rule_svg(title)

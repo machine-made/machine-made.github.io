@@ -9,8 +9,6 @@ Foundations for science and engineering, built for humans today and agents tomor
 - [minuit2-rs](https://github.com/machine-made/minuit2-rs): Pure Rust port of CERN ROOT Minuit2, checked against ROOT
 - [libsvm-rs](https://github.com/machine-made/libsvm-rs): Pure Rust LIBSVM, checked against the C++ original
 - [nebula-quanta](https://github.com/machine-made/nebula-quanta): Deterministic Barnes-Hut N-body simulation in Rust
-- [dynachaos](https://github.com/machine-made/dynachaos): Dynamical-systems analysis for time signals, with Rust kernels
-- [chaos-atlas](https://github.com/machine-made/chaos-atlas): Interactive explorer of chaotic systems, attractors and fractals ([site](https://machine-made.github.io/chaos-atlas/))
 - [nanochat-rs](https://github.com/machine-made/nanochat-rs): Small language models trained in Rust, benchmarked against nanochat
 
 ## Desktop and editor tools

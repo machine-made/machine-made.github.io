@@ -38,15 +38,6 @@
           "line": "Deterministic Barnes-Hut N-body simulation in Rust"
         },
         {
-          "repo": "dynachaos",
-          "line": "Dynamical-systems analysis for time signals, with Rust kernels"
-        },
-        {
-          "repo": "chaos-atlas",
-          "line": "Interactive explorer of chaotic systems, attractors and fractals",
-          "site": "https://machine-made.github.io/chaos-atlas/"
-        },
-        {
           "repo": "nanochat-rs",
           "line": "Small language models trained in Rust, benchmarked against nanochat"
         }
@@ -135,5 +126,9 @@
     }
   ],
   "footer": "An open-source workshop. Built by agents, guided by humans.",
+  "redirects": {
+    "chaos-atlas": "https://openfluids.github.io/chaos-atlas/",
+    "dynachaos": "https://github.com/openfluids/dynachaos"
+  },
   "year": 2026
 }

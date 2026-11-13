@@ -297,12 +297,15 @@ def load_site() -> dict[str, Any]:
     for key, what in (("papers", "paper"), ("log", "log entry")):
         entries = site.get(key, [])
         if not isinstance(entries, list) or not all(
-            isinstance(p, dict) and isinstance(p.get("title"), str) and isinstance(p.get("status"), str) and p["title"].isascii()
+            isinstance(p, dict)
+            and all(isinstance(p.get(k), str) and p[k].isascii() and p[k].isprintable() for k in ("title", "status"))
             for p in entries
         ):
             fail(f"site.{key} must be a list of {{title, status}}", f"Give each {what} a title and a status, in plain ASCII.")
     if not card.sentences(site["tagline"]):
         fail("site.tagline has no sentence", "Write the line as one or two short sentences.")
+    if slug(site["name"]) in {"main", "houses", "papers", "lab-log"}:
+        fail("site.name clashes with a section", "Pick a site name that is not main, houses, papers or lab log.")
     slugs: set[str] = {"main", "houses", "papers", "lab-log", slug(site["name"])}
     repos: list[str] = []
     for g, group in enumerate(site["groups"]):

@@ -65,8 +65,10 @@ PAPERS = (
 LOG = (
     (
         "in preparation",
-        "Algebraic Patterns, the machine-made lab log: short posts built on the lab's own data, "
-        "each with a section on what failed",
+        (
+            "Algebraic Patterns, the machine-made lab log: short posts built on the lab's own data, "
+            "each with a section on what failed"
+        ),
     ),
 )
 BASE_FILES = {"index.html", "style.css", "mark.svg", "llms.txt"}
@@ -582,6 +584,9 @@ def check_content(page: Page, html_text: str) -> str:
         r'<li><span class="status">([^<]*)</span><p>([^<]*)</p></li>',
         "".join(re.findall(r'<h2 id="lab-log">Lab log</h2>\s*<ul class="papers">(.*?)</ul>', html_text, re.S)),
     )
+    log_body = "".join(re.findall(r'<h2 id="lab-log">Lab log</h2>\s*<ul class="papers">(.*?)</ul>', html_text, re.S))
+    if log_body.count("<li") != len(LOG) or html_text.count('id="lab-log"') != (1 if LOG else 0):
+        fail("log", "the Lab log section must hold exactly the allowed entries")
     if [(html.unescape(s), html.unescape(t)) for s, t in shown_log] != list(LOG):
         fail("log", "the Lab log list must be exactly the allowed entries, in order, with their status")
     if len(re.findall(r'<a class="site"', html_text)) != len(SITE_LINKS):
@@ -937,6 +942,8 @@ def check_llms(name: str | None) -> None:
         for title, entries in (("Papers", PAPERS), ("Lab log", LOG))
         if entries
     )
+    if text.count("## Lab log") != (1 if LOG else 0):
+        fail("llms", "llms.txt must have exactly one Lab log section when there are lab log entries, and none otherwise")
     if listed and listed + "## Houses" not in text:
         fail("llms", "llms.txt must list exactly the allowed papers and lab log entries before Houses")
     if [(t, r) for t, r in found if t not in ("Houses", "Papers", "Lab log")] != [(title, list(repos)) for title, repos in GROUPS]:
@@ -1216,6 +1223,8 @@ def self_test() -> None:
         ("old footer in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", ", guided by humans.", ".")),
         ("a paper's status changed", "papers", [], lambda d: edit(d, "index.html", ">under review<", ">accepted<")),
         ("a lab log status changed", "log", [], lambda d: edit(d, "index.html", ">in preparation</span><p>Algebraic", ">published</span><p>Algebraic")),
+        ("an extra row in the lab log", "log", [], lambda d: edit(d, "index.html", "what failed</p></li>", "what failed</p></li><li>Unapproved draft</li>")),
+        ("a second lab log section in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", "## Houses", "## Lab log\n\n- Unapproved draft (in preparation)\n\n## Houses")),
         ("a lab log entry missing in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", "- Algebraic Patterns, the machine-made lab log: short posts built on the lab's own data, each with a section on what failed (in preparation)\n", "")),
         ("a paper missing in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", "- OpenModalPy: modal decomposition of spatiotemporal data (in preparation)\n", "")),
         ("footer missing in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", f"\n\n{FOOTER}", "")),
@@ -1357,7 +1366,7 @@ def self_test() -> None:
 def load_allow(folder: str) -> None:
     """Point the checks at another house. Its allow.json is the public list, kept apart from site.json
     on purpose: the page passes only when the two agree."""
-    global ROOT, DOCS, OWNER, GROUPS, PUBLIC_REPOS, SITE_LINKS, REDIRECTS, HOUSE_URLS, TAB_URLS, TAGLINE, SUBTITLE, FOOTER, PAPERS, LOG
+    global ROOT, DOCS, OWNER, GROUPS, PUBLIC_REPOS, SITE_LINKS, REDIRECTS, HOUSE_URLS, TAB_URLS, TAGLINE, SUBTITLE, FOOTER, PAPERS, LOG  # noqa: PLW0603
     root = Path(folder).resolve()
     try:
         allow = json.loads((root / "allow.json").read_text(encoding="utf-8"))

@@ -79,8 +79,7 @@ same bytes.
   in FILE. Keep FILE outside this repository.
 - The Lab log section lists each entry with a status, like Papers. `LOG` in `check_site.py` is the
   allowed list. Drafts of posts and the data behind them do not go in this repository. An entry
-  appears here only after the owner has approved its text, and it gets a link only when its post
-  is public.
+  appears here only after the owner has approved its text.
 - No script, no tracking, no personal names, no costs.
 
 ## Licence

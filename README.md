@@ -81,4 +81,4 @@ same bytes.
 
 ## Licence
 
-To be confirmed (Apache-2.0 proposed).
+Apache-2.0. See [LICENSE](LICENSE).

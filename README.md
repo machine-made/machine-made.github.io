@@ -1,6 +1,4 @@
-# machine-made.github.io
-
-The machine-made website: one page and one `llms.txt`, built from `site.json`.
+`machine-made.github.io` is the machine-made website: one page and one `llms.txt`, built from `site.json`.
 
 > **Status: live at https://machine-made.github.io/.**
 

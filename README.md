@@ -1,3 +1,5 @@
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
 `machine-made.github.io` is the machine-made website: one page and one `llms.txt`, built from `site.json`.
 
 > **Status: live at https://machine-made.github.io/.**

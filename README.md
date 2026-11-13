@@ -27,7 +27,7 @@ deterministic: the same source tree gives the same bytes.
 
 | Path | Holds |
 | --- | --- |
-| `site.json` | The content: name, line, subtitle line, the three project groups, houses |
+| `site.json` | The content: name, line, subtitle line, the project groups, papers, lab log entries, houses |
 | `card.py` | The marks: the square logo, the punched card of the profile hero and the rows of dots. The palette |
 | `build.py` | The generator: page, style, `llms.txt`, the weave; uses `card.py` |
 | `brand.py` | The GitHub profile hero and the avatar, drawn from `card.py` and `fonts/`. Writes `brand/` |
@@ -77,6 +77,10 @@ same bytes.
   `site.json` and in `PUBLIC_REPOS` in `check_site.py`.
 - `check_site.py --deny FILE`, or `MM_DENY_FILE=FILE sh gate.sh`, also rejects any name listed
   in FILE. Keep FILE outside this repository.
+- The Lab log section lists each entry with a status, like Papers. `LOG` in `check_site.py` is the
+  allowed list. Drafts of posts and the data behind them do not go in this repository. An entry
+  appears here only after the owner has approved its text, and it gets a link only when its post
+  is public.
 - No script, no tracking, no personal names, no costs.
 
 ## Licence

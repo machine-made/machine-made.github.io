@@ -294,15 +294,19 @@ def load_site() -> dict[str, Any]:
     title = site.get("title", site["name"])
     if not isinstance(title, str) or title.lower() != site["name"] or not title.isascii():
         fail("site.title must be the name with capitals only", 'Write site.title as site.name with some letters in capitals, or leave it out.')
-    papers = site.get("papers", [])
-    if not isinstance(papers, list) or not all(
-        isinstance(p, dict) and isinstance(p.get("title"), str) and isinstance(p.get("status"), str) and p["title"].isascii()
-        for p in papers
-    ):
-        fail("site.papers must be a list of {title, status}", "Give each paper a title and a status, in plain ASCII.")
+    for key, what in (("papers", "paper"), ("log", "log entry")):
+        entries = site.get(key, [])
+        if not isinstance(entries, list) or not all(
+            isinstance(p, dict)
+            and all(isinstance(p.get(k), str) and p[k].isascii() and p[k].isprintable() for k in ("title", "status"))
+            for p in entries
+        ):
+            fail(f"site.{key} must be a list of {{title, status}}", f"Give each {what} a title and a status, in plain ASCII.")
     if not card.sentences(site["tagline"]):
         fail("site.tagline has no sentence", "Write the line as one or two short sentences.")
-    slugs: set[str] = {"main", "houses", slug(site["name"])}
+    if slug(site["name"]) in {"main", "houses", "papers", "lab-log"}:
+        fail("site.name clashes with a section", "Pick a site name that is not main, houses, papers or lab log.")
+    slugs: set[str] = {"main", "houses", "papers", "lab-log", slug(site["name"])}
     repos: list[str] = []
     for g, group in enumerate(site["groups"]):
         where = f"groups[{g}]"
@@ -376,17 +380,16 @@ def display_name(site: dict[str, Any]) -> str:
     return str(site.get("title", site["name"]))
 
 
-def papers_section(site: dict[str, Any]) -> str:
-    """The Papers section: each paper with its status, no link until it is public. Empty when there are none."""
-    papers = site.get("papers", [])
-    if not papers:
+def status_section(title: str, entries: list[dict[str, str]]) -> str:
+    """A section of entries with a status each, no link until the entry is public. Empty when there are none."""
+    if not entries:
         return ""
     items = "\n".join(
-        f'<li><span class="status">{esc(p["status"])}</span><p>{esc(p["title"])}</p></li>' for p in papers
+        f'<li><span class="status">{esc(p["status"])}</span><p>{esc(p["title"])}</p></li>' for p in entries
     )
     return (
-        f'<section class="section" aria-labelledby="papers">\n{rule_img("Papers")}\n'
-        f'<div class="wrap split">\n<h2 id="papers">Papers</h2>\n<ul class="papers">\n{items}\n</ul>\n</div>\n</section>\n'
+        f'<section class="section" aria-labelledby="{slug(title)}">\n{rule_img(title)}\n'
+        f'<div class="wrap split">\n<h2 id="{slug(title)}">{esc(title)}</h2>\n<ul class="papers">\n{items}\n</ul>\n</div>\n</section>\n'
     )
 
 
@@ -446,7 +449,7 @@ def page_html(site: dict[str, Any]) -> str:
 </header>
 <main id="main">
 {groups}
-{papers_section(site)}<section class="section" aria-labelledby="houses">
+{status_section("Papers", site.get("papers", []))}{status_section("Lab log", site.get("log", []))}<section class="section" aria-labelledby="houses">
 {rule_img("Houses")}
 <div class="wrap split">
 <h2 id="houses">Houses</h2>
@@ -491,10 +494,11 @@ def llms_txt(site: dict[str, Any]) -> str:
     groups = "\n\n".join(
         f"## {g['title']}\n\n" + "\n".join(entry(p) for p in g["projects"]) for g in site["groups"]
     )
-    papers = "".join(
-        f"- {p['title']} ({p['status']})\n" for p in site.get("papers", [])
-    )
-    papers = f"## Papers\n\n{papers}\n" if papers else ""
+    def listed(title: str, key: str) -> str:
+        lines = "".join(f"- {p['title']} ({p['status']})\n" for p in site.get(key, []))
+        return f"## {title}\n\n{lines}\n" if lines else ""
+
+    papers = listed("Papers", "papers") + listed("Lab log", "log")
     houses = "\n".join(f"- [{h['name']}]({h['url']}): {h['line']}" for h in site["houses"])
     return (
         f"# {display_name(site)}\n\n> {site['tagline']}\n\n{site['subtitle']}\n\n"
@@ -548,8 +552,8 @@ def main() -> None:
     }
     for folder, url in site.get("redirects", {}).items():
         files[f"{folder}/index.html"] = redirect_html(folder, url)
-    papers = ["Papers"] if site.get("papers") else []
-    for title in [g["title"] for g in site["groups"]] + papers + ["Houses", name]:
+    listed = (["Papers"] if site.get("papers") else []) + (["Lab log"] if site.get("log") else [])
+    for title in [g["title"] for g in site["groups"]] + listed + ["Houses", name]:
         files[f"rules/{slug(title)}.svg"] = card.rule_svg(title)
     fonts = {f"fonts/{font}": data for font, data in font_bytes().items()}
     for rel, text in files.items():

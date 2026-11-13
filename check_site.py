@@ -61,6 +61,16 @@ PAPERS = (
     ),
     ("in preparation", "OpenModalPy: modal decomposition of spatiotemporal data"),
 )
+# The lab log entries the page may list, as (status, title). No link until a post is approved and public.
+LOG = (
+    (
+        "in preparation",
+        (
+            "Algebraic Patterns, the machine-made lab log: short posts built on the lab's own data, "
+            "each with a section on what failed"
+        ),
+    ),
+)
 BASE_FILES = {"index.html", "style.css", "mark.svg", "llms.txt"}
 # The two fonts of the site and their licences, served from docs/fonts/. The page loads nothing else.
 FONT_FAMILIES = {"machine-made Weft": "mm-weft", "machine-made Sans": "mm-sans"}
@@ -334,8 +344,8 @@ def rule_titles(name: str | None) -> list[str]:
 
 
 def section_titles() -> list[str]:
-    """The h2 headings in page order: the groups, Papers when there are papers, Houses."""
-    return [title for title, _ in GROUPS] + (["Papers"] if PAPERS else []) + ["Houses"]
+    """The h2 headings in page order: the groups, Papers and Lab log when they have entries, Houses."""
+    return [title for title, _ in GROUPS] + (["Papers"] if PAPERS else []) + (["Lab log"] if LOG else []) + ["Houses"]
 
 
 def redirect_page(name: str, url: str) -> str:
@@ -563,13 +573,22 @@ def check_content(page: Page, html_text: str) -> str:
     if found != [(title, list(repos)) for title, repos in GROUPS]:
         fail("projects", "the projects are not in the three groups, in order, under their headings")
     if [h for kind, h in page.headings if kind == "h2"] != section_titles():
-        fail("projects", "the h2 headings must be the group titles, then Papers if any, then Houses")
+        fail("projects", "the h2 headings must be the group titles, then Papers and Lab log if any, then Houses")
     shown_papers = re.findall(
         r'<li><span class="status">([^<]*)</span><p>([^<]*)</p></li>',
         "".join(re.findall(r'<h2 id="papers">Papers</h2>\s*<ul class="papers">(.*?)</ul>', html_text, re.S)),
     )
     if [(html.unescape(s), html.unescape(t)) for s, t in shown_papers] != list(PAPERS):
         fail("papers", "the Papers list must be exactly the allowed papers, in order, with their status")
+    shown_log = re.findall(
+        r'<li><span class="status">([^<]*)</span><p>([^<]*)</p></li>',
+        "".join(re.findall(r'<h2 id="lab-log">Lab log</h2>\s*<ul class="papers">(.*?)</ul>', html_text, re.S)),
+    )
+    log_body = "".join(re.findall(r'<h2 id="lab-log">Lab log</h2>\s*<ul class="papers">(.*?)</ul>', html_text, re.S))
+    if log_body.count("<li") != len(LOG) or html_text.count('id="lab-log"') != (1 if LOG else 0):
+        fail("log", "the Lab log section must hold exactly the allowed entries")
+    if [(html.unescape(s), html.unescape(t)) for s, t in shown_log] != list(LOG):
+        fail("log", "the Lab log list must be exactly the allowed entries, in order, with their status")
     if len(re.findall(r'<a class="site"', html_text)) != len(SITE_LINKS):
         fail("projects", "the page has a site link that the allowed list does not name")
     for repo, url in SITE_LINKS.items():
@@ -918,10 +937,16 @@ def check_llms(name: str | None) -> None:
     if not text.endswith(f"\n\n{FOOTER}\n"):
         fail("llms", "llms.txt must end with the footer line")
     found = group_lists(text, r"## ([^\n]+)\n\n((?:- [^\n]*\n?)+)")
-    paper_lines = [f"- {t} ({s})" for s, t in PAPERS]
-    if PAPERS and f"## Papers\n\n" + "\n".join(paper_lines) + "\n\n## Houses" not in text:
-        fail("llms", "llms.txt must list exactly the allowed papers before Houses")
-    if [(t, r) for t, r in found if t not in ("Houses", "Papers")] != [(title, list(repos)) for title, repos in GROUPS]:
+    listed = "".join(
+        f"## {title}\n\n" + "\n".join(f"- {t} ({s})" for s, t in entries) + "\n\n"
+        for title, entries in (("Papers", PAPERS), ("Lab log", LOG))
+        if entries
+    )
+    if text.count("## Lab log") != (1 if LOG else 0):
+        fail("llms", "llms.txt must have exactly one Lab log section when there are lab log entries, and none otherwise")
+    if listed and listed + "## Houses" not in text:
+        fail("llms", "llms.txt must list exactly the allowed papers and lab log entries before Houses")
+    if [(t, r) for t, r in found if t not in ("Houses", "Papers", "Lab log")] != [(title, list(repos)) for title, repos in GROUPS]:
         fail("llms", "llms.txt must follow the three groups, in order")
     lines = (re.sub(r"^[#>-]+\s*", "", line) for line in text.splitlines())
     check_prose([re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", line) for line in lines], "llms.txt")
@@ -1197,6 +1222,10 @@ def self_test() -> None:
         ("old footer on the page", "content", [], lambda d: edit(d, "index.html", ", guided by humans.", ".")),
         ("old footer in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", ", guided by humans.", ".")),
         ("a paper's status changed", "papers", [], lambda d: edit(d, "index.html", ">under review<", ">accepted<")),
+        ("a lab log status changed", "log", [], lambda d: edit(d, "index.html", ">in preparation</span><p>Algebraic", ">published</span><p>Algebraic")),
+        ("an extra row in the lab log", "log", [], lambda d: edit(d, "index.html", "what failed</p></li>", "what failed</p></li><li>Unapproved draft</li>")),
+        ("a second lab log section in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", "## Houses", "## Lab log\n\n- Unapproved draft (in preparation)\n\n## Houses")),
+        ("a lab log entry missing in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", "- Algebraic Patterns, the machine-made lab log: short posts built on the lab's own data, each with a section on what failed (in preparation)\n", "")),
         ("a paper missing in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", "- OpenModalPy: modal decomposition of spatiotemporal data (in preparation)\n", "")),
         ("footer missing in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", f"\n\n{FOOTER}", "")),
         ("old subtitle line", "content", [], lambda d: edit(d, "index.html", "Foundations for science and engineering, built for humans today and agents tomorrow.", "A hobby: side projects, made in spare time.")),
@@ -1337,7 +1366,7 @@ def self_test() -> None:
 def load_allow(folder: str) -> None:
     """Point the checks at another house. Its allow.json is the public list, kept apart from site.json
     on purpose: the page passes only when the two agree."""
-    global ROOT, DOCS, OWNER, GROUPS, PUBLIC_REPOS, SITE_LINKS, REDIRECTS, HOUSE_URLS, TAB_URLS, TAGLINE, SUBTITLE, FOOTER, PAPERS
+    global ROOT, DOCS, OWNER, GROUPS, PUBLIC_REPOS, SITE_LINKS, REDIRECTS, HOUSE_URLS, TAB_URLS, TAGLINE, SUBTITLE, FOOTER, PAPERS, LOG  # noqa: PLW0603
     root = Path(folder).resolve()
     try:
         allow = json.loads((root / "allow.json").read_text(encoding="utf-8"))
@@ -1349,6 +1378,7 @@ def load_allow(folder: str) -> None:
         TAB_URLS = tuple(str(u) for u in allow["tab_urls"])
         TAGLINE, SUBTITLE, FOOTER = str(allow["tagline"]), str(allow["subtitle"]), str(allow["footer"])
         PAPERS = tuple((str(s), str(t)) for s, t in allow.get("papers", []))
+        LOG = tuple((str(s), str(t)) for s, t in allow.get("log", []))
     except (OSError, ValueError, KeyError, TypeError) as exc:
         print(f"FAIL args: {folder}/allow.json is missing or incomplete ({exc.__class__.__name__})")
         sys.exit(2)

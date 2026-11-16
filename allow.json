@@ -1,0 +1,71 @@
+{
+  "owner": "machine-made",
+  "self": "machine-made",
+  "line": "A home-built, asynchronous factory for scientific software.",
+  "blurb": "In 1804 the Jacquard loom wove patterns read from punched cards. The pattern came from a person; the cloth came from the machine. The name and the mark come from those cards.",
+  "theme": {
+    "ground": "#0a0a0b",
+    "text": "#ecebe6",
+    "muted": "#8b8b90",
+    "accent": "#e5251c",
+    "font": "machine-made Weft"
+  },
+  "sites": [
+    [
+      "machine-made",
+      "https://machine-made.github.io/"
+    ],
+    [
+      "openfluids",
+      "https://openfluids.github.io/"
+    ],
+    [
+      "BoringQuantSystems",
+      "https://boringquantsystems.github.io/"
+    ]
+  ],
+  "groups": [
+    [
+      "Type",
+      [
+        "machine-made/type"
+      ]
+    ],
+    [
+      "Science and numerics",
+      [
+        "machine-made/minuit2-rs",
+        "machine-made/libsvm-rs",
+        "machine-made/liblinear-rs",
+        "machine-made/nebula-quanta",
+        "machine-made/nanochat-rs"
+      ]
+    ],
+    [
+      "Tools for agents",
+      [
+        "machine-made/alexandria",
+        "machine-made/bun-do",
+        "machine-made/fortran-lsp",
+        "machine-made/pi-effort",
+        "machine-made/pi-rethread",
+        "machine-made/tex2speech"
+      ]
+    ],
+    [
+      "Desktop",
+      [
+        "machine-made/pdf-next",
+        "machine-made/vscode-pdf-next",
+        "machine-made/vscode-diff-next"
+      ]
+    ]
+  ],
+  "site_links": {
+    "machine-made/type": "https://machine-made.github.io/type/"
+  },
+  "redirects": {
+    "chaos-atlas": "https://openfluids.github.io/chaos-atlas/",
+    "dynachaos": "https://github.com/openfluids/dynachaos"
+  }
+}

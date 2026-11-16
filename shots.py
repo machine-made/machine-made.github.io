@@ -23,11 +23,11 @@ FIT_WIDTHS = (320, 360, 390, 720, 1000, 1280, 1920)
 SHOT_WIDTHS = (390, 1280)
 HEIGHT = 900
 MAX_LINE = 70
-FONTS_LOADED = "() => [...document.fonts].map(f => f.status)"
+FONTS_LOADED = "() => [...document.fonts].map(f => [f.family.replace(/^[\"']|[\"']$/g, ''), f.status])"
 IMAGES_LOADED = "() => [...document.images].every(i => i.complete && i.naturalWidth > 0)"
 LONGEST_LINE = """() => {
   let longest = 0;
-  for (const p of document.querySelectorAll("main p, footer p")) {
+  for (const p of document.querySelectorAll("main p, main .ds, footer p")) {
     const lines = new Map();
     const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT);
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
@@ -62,6 +62,8 @@ def main() -> None:
     docs_dir = args.site.resolve() / "docs"
     url = (docs_dir / "index.html").as_uri()
     docs = docs_dir.as_uri() + "/"
+    theme_font = json.loads((args.site / "site.json").read_text(encoding="utf-8"))["theme"]["font"]
+    wanted_faces = {"machine-made Weft", theme_font}
     report = []
     with sync_playwright() as pw:
         browser = pw.chromium.launch(executable_path=args.chrome) if args.chrome else pw.chromium.launch()
@@ -85,7 +87,7 @@ def main() -> None:
             entry["longest_line"] = page.evaluate(LONGEST_LINE)
             entry["measure_ok"] = entry["longest_line"] < MAX_LINE
             statuses = page.evaluate(FONTS_LOADED)
-            entry["fonts_ok"] = bool(statuses) and all(s == "loaded" for s in statuses)
+            entry["fonts_ok"] = all(s == "loaded" for _, s in statuses) and wanted_faces <= {f for f, _ in statuses}
             entry["images_ok"] = page.evaluate(IMAGES_LOADED)
             entry["outside"] = outside
             if width in SHOT_WIDTHS:

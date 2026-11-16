@@ -1,31 +1,65 @@
 {
   "owner": "openfluids",
+  "self": "openfluids",
+  "line": "Open tools for fluid flows: state-of-the-art methods, ultra-modern low-memory code, for humans and agents.",
+  "blurb": "Open code for fluid mechanics.",
+  "theme": {
+    "ground": "#0d1116",
+    "text": "#e6eef2",
+    "muted": "#8395a0",
+    "accent": "#5cc8d6",
+    "font": "Lato"
+  },
+  "sites": [
+    [
+      "machine-made",
+      "https://machine-made.github.io/"
+    ],
+    [
+      "openfluids",
+      "https://openfluids.github.io/"
+    ],
+    [
+      "BoringQuantSystems",
+      "https://boringquantsystems.github.io/"
+    ]
+  ],
   "groups": [
     [
-      "Analysis",
+      "Stability",
       [
-        "openmodalpy",
-        "dsgbr",
-        "fftkit"
+        "openfluids/linstabpy",
+        "nekStab/nekStab"
       ]
     ],
     [
-      "Runs and frames",
+      "Analysis",
       [
-        "hpckit",
-        "quadros"
+        "openfluids/openmodalpy",
+        "openfluids/dynachaos",
+        "openfluids/fftkit",
+        "openfluids/dsgbr",
+        "openfluids/chaos-atlas"
+      ]
+    ],
+    [
+      "Solvers",
+      [
+        "openfluids/dolfinx-rans"
+      ]
+    ],
+    [
+      "Runs",
+      [
+        "openfluids/hpckit",
+        "openfluids/quadros"
       ]
     ]
   ],
-  "site_links": {},
-  "house_urls": [
-    "https://machine-made.github.io/",
-    "https://boringquantsystems.github.io/"
-  ],
-  "tab_urls": [
-    "https://machine-made.github.io/type/"
-  ],
-  "tagline": "Open tools for fluid flows.",
-  "subtitle": "A machine-made house: from the run to the result.",
-  "footer": "An open-source workshop. Built by agents, guided by humans."
+  "site_links": {
+    "openfluids/linstabpy": "https://linstabpy.vercel.app/",
+    "openfluids/dynachaos": "https://openfluids.github.io/dynachaos/",
+    "openfluids/chaos-atlas": "https://openfluids.github.io/chaos-atlas/"
+  },
+  "redirects": {}
 }

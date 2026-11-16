@@ -1,6 +1,6 @@
-# machine-made.github.io
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-The machine-made website: one page and one `llms.txt`, built from `site.json`.
+`machine-made.github.io` is the machine-made website: one page and one `llms.txt`, built from `site.json`.
 
 > **Status: live at https://machine-made.github.io/.**
 
@@ -14,9 +14,6 @@ sh gate.sh              # build twice and compare, self-tests, check, forbidden 
 python3 shots.py        # screenshots in shots/, light and dark; needs Playwright
 python3 brand.py --fonts fonts   # the profile hero and the avatar in brand/; needs Playwright, fontTools, brotli
 MM_FONTS=fonts sh gate.sh        # the gate, with brand/ built twice and compared
-python3 build.py --site houses/openfluids          # a house site, into houses/openfluids/docs/
-python3 check_site.py --site houses/openfluids     # its checks, against its own allow.json
-sh publish.sh openfluids ../openfluids.github.io   # build a house into its Pages repository
 python3 fonts.py --type DIR      # fonts/ from a checkout of machine-made/type; needs fontTools, brotli
 ```
 
@@ -84,4 +81,6 @@ same bytes.
 
 ## Licence
 
-To be confirmed (Apache-2.0 proposed).
+Apache-2.0. See [LICENSE](LICENSE).
+
+The fonts in `fonts/` stay under the SIL Open Font License 1.1. See `fonts/mm-sans-OFL.txt` and `fonts/mm-weft-OFL.txt`.

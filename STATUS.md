@@ -19,8 +19,8 @@
   Checked on 2026-10-27: the page loads machine-made Weft and machine-made Sans from `docs/fonts/`.
 - Two builds give byte-identical files, fonts included.
 - `check_site.py` passes: the HTML parses, every local link and image resolves, the banner has
-  alt text and each plate image is decorative (alt="") beside a named link, contrast is 7:1 or better for text, one accent colour, and only the public projects and the two houses are linked. The old /chaos-atlas/ and /dynachaos/ paths forward to openfluids.
-- The page makes no external request. The two fonts, machine-made Weft and machine-made Sans,
+  alt text and each plate image is decorative (alt="") beside a named link, contrast is at least 4.5:1 for text and 3:1 for accent marks, one accent colour, and only the public projects and the two houses are linked. The old /chaos-atlas/ and /dynachaos/ paths forward to openfluids.
+- The page makes no external request. The fonts (machine-made Weft, Lato and EB Garamond)
   are files in `docs/fonts/` with their licences. `check_site.py` fails on any external
   stylesheet, preload, font or css url, on an `@font-face` without `font-display: swap`, and on a
   font file that is not WOFF2. `shots.py` records every request and fails on one outside `docs/`.

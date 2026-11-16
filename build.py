@@ -74,8 +74,8 @@ def rem(px: int) -> str:
 def root_css(site: dict[str, Any]) -> str:
     theme = site["theme"]
     faces = "".join(
-        '@font-face{font-family:"%s";src:url(fonts/%s.woff2) format("woff2");font-weight:%s;font-style:normal;'
-        "font-display:swap}\n" % (fam, FAMILIES[fam]["file"], FAMILIES[fam]["weight"])
+        f'@font-face{{font-family:"{fam}";src:url(fonts/{FAMILIES[fam]["file"]}.woff2) format("woff2");'
+        f'font-weight:{FAMILIES[fam]["weight"]};font-style:normal;font-display:swap}}\n'
         for fam in families_of(site)
     )
     values = (
@@ -169,6 +169,8 @@ def load_site() -> dict[str, Any]:
     if not (IMAGES / "org" / f"{site['name']}.jpg").is_file():
         fail(f"img/org/{site['name']}.jpg is missing", "Put the 1408 x 469 organisation banner in img/org/.")
     nav = site["nav"]
+    if not all(isinstance(t, dict) for t in nav):
+        fail("site.nav must hold objects", "Write each nav entry as {name, url} and mark the current one with self.")
     if [t.get("name") for t in nav] != list(BAR) or sum(1 for t in nav if t.get("self")) != 1:
         fail("site.nav must list the three sites in order, one of them self", f"List {', '.join(BAR)}; mark the current one with self.")
     for t in nav:
@@ -181,7 +183,7 @@ def load_site() -> dict[str, Any]:
         for k, v in redirects.items()
     ):
         fail("site.redirects must map a folder name to an https URL", "Use names like chaos-atlas and plain https URLs.")
-    if set(redirects) & ({"fonts", "img"} | set(repos)):
+    if set(redirects) & ({"fonts", "img", "index.html", "style.css", "mark.svg", "llms.txt"} | set(repos)):
         fail("a redirect folder clashes with a site folder or a project", "Pick another folder name.")
     return site
 
@@ -207,11 +209,11 @@ def plate(site: dict[str, Any], item: dict[str, str]) -> str:
     """One plate: the repository banner, its name, one line. The whole plate links to the repository.
     When the project has a site or documentation, the banner links to the repository and the name to that site."""
     name, url = item["repo"], repo_url(site, item)
-    img = f'<img src="img/{esc(name)}.jpg" width="{PLATE_SIZE[0]}" height="{PLATE_SIZE[1]}" loading="lazy" alt="{esc(name)}">'
+    img = f'<img src="img/{esc(name)}.jpg" width="{PLATE_SIZE[0]}" height="{PLATE_SIZE[1]}" loading="lazy" alt="">'
     line = f'<span class="ds">{esc(item["line"])}</span>'
     if "site" in item:
         return (
-            f'<li class="plate"><a class="pic" href="{esc(url)}">{img}</a>'
+            f'<li class="plate"><a class="pic" href="{esc(url)}" aria-label="{esc(name)} repository">{img}</a>'
             f'<a class="nm" href="{esc(item["site"])}">{esc(name)}</a>{line}</li>'
         )
     return f'<li class="plate"><a class="whole" href="{esc(url)}">{img}<span class="nm">{esc(name)}</span>{line}</a></li>'
@@ -324,7 +326,7 @@ def parse_site(argv: list[str]) -> Path:
 
 
 def main() -> None:
-    global SITE, DOCS
+    global SITE, DOCS  # noqa: PLW0603 -- the build state, set once from the command line
     SITE = parse_site(sys.argv[1:])
     DOCS = SITE / "docs"
     site = load_site()

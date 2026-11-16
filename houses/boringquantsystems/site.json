@@ -1,9 +1,18 @@
 {
   "name": "boringquantsystems",
   "title": "BoringQuantSystems",
-  "tagline": "Boring means trustworthy.",
-  "subtitle": "A machine-made house: exact, reproducible engines for markets.",
   "owner": "BoringQuantSystems",
+  "line": "Boring on purpose. Deterministic infrastructure for non-deterministic systems.",
+  "blurb": "The best systems are the ones nobody talks about. BoringQuantSystems aims to be one of them.",
+  "theme": {
+    "ground": "#050507",
+    "text": "#ecebe6",
+    "muted": "#8b8b90",
+    "accent": "#3ddc97",
+    "font": "EB Garamond",
+    "size": 18,
+    "line_size": 27
+  },
   "nav": [
     {
       "name": "machine-made",
@@ -14,11 +23,8 @@
       "url": "https://openfluids.github.io/"
     },
     {
-      "name": "fonts",
-      "url": "https://machine-made.github.io/type/"
-    },
-    {
       "name": "BoringQuantSystems",
+      "url": "https://boringquantsystems.github.io/",
       "self": true
     }
   ],
@@ -28,23 +34,9 @@
       "projects": [
         {
           "repo": "nanobook",
-          "line": "Rust execution layer for Python trading strategies: order book, backtests, pre-trade risk"
+          "line": "an order book and backtests, in Rust"
         }
       ]
     }
-  ],
-  "houses": [
-    {
-      "name": "machine-made",
-      "line": "the umbrella over every house",
-      "url": "https://machine-made.github.io/"
-    },
-    {
-      "name": "openfluids",
-      "line": "open tools for fluid mechanics",
-      "url": "https://openfluids.github.io/"
-    }
-  ],
-  "footer": "An open-source workshop. Built by agents, guided by humans.",
-  "year": 2026
+  ]
 }

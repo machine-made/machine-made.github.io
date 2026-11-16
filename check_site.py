@@ -435,8 +435,10 @@ def check_html(page: Page, html_text: str, name: str | None) -> None:
     if first.get("href") != "#main" or "main" not in page.ids:
         fail("a11y", "the first link must be a skip link to #main")
     for img in page.imgs:
-        if not (img.get("alt") or "").strip():
-            fail("a11y", f"image {img.get('src')} has no alt text")
+        # The banner carries the org name. A plate image is decorative (alt=""): its link names it.
+        banner = img.get("class") == "banner"
+        if "alt" not in img or (banner and not (img.get("alt") or "").strip()):
+            fail("a11y", f"image {img.get('src')} has no alt attribute, or the banner has empty alt text")
         if not (img.get("width") and img.get("height")):
             fail("responsive", f"image {img.get('src')} has no width and height")
         target = local_target(img.get("src") or "")
@@ -550,13 +552,13 @@ def plate_html(full: str, line: str | None = None) -> re.Pattern[str]:
     url = re.escape(f"https://github.com/{full}")
     img = (
         rf'<img src="img/{re.escape(repo)}\.jpg" width="{PLATE_SIZE[0]}" height="{PLATE_SIZE[1]}" '
-        rf'loading="lazy" alt="{re.escape(repo)}">'
+        rf'loading="lazy" alt="">'
     )
     text = r'(?P<line>[^<]+)' if line is None else re.escape(line)
     if full in SITE_LINKS:
         site = re.escape(SITE_LINKS[full])
         return re.compile(
-            rf'<li class="plate"><a class="pic" href="{url}">{img}</a><a class="nm" href="{site}">{re.escape(repo)}</a>'
+            rf'<li class="plate"><a class="pic" href="{url}" aria-label="{re.escape(repo)} repository">{img}</a><a class="nm" href="{site}">{re.escape(repo)}</a>'
             rf'<span class="ds">{text}</span></li>'
         )
     return re.compile(
@@ -567,7 +569,7 @@ def plate_html(full: str, line: str | None = None) -> re.Pattern[str]:
 
 def check_content(page: Page, html_text: str) -> str:
     text = " ".join(" ".join(page.text).split())
-    visible = " ".join([text] + page.values + page.hidden + page.tags)
+    visible = " ".join([text, *page.values, *page.hidden, *page.tags])
     expected_bar = "\n".join(
         f'<a href="{html.escape(u)}"' + (' aria-current="page"' if n == SELF else "") + f">{html.escape(n)}</a>"
         for n, u in SITES
@@ -713,6 +715,8 @@ def check_images() -> None:
         want = BANNER_SIZE if path.name == "banner.jpg" else PLATE_SIZE
         if size is None:
             fail("images", f"docs/img/{path.name} is not a JPEG")
+        elif not data.endswith(b"\xff\xd9"):
+            fail("images", f"docs/img/{path.name} is cut short: it has no end-of-image marker")
         elif size != want:
             fail("images", f"docs/img/{path.name} is {size[0]} x {size[1]}; it must be {want[0]} x {want[1]}")
         if len(data) > MAX_IMAGE_BYTES:
@@ -769,6 +773,13 @@ def check_behaviour(css: str) -> None:
             continue
         if "outline" in decls and "none" in decls["outline"] and ":focus-visible" not in selector:
             fail("focus", f"{selector[:40]} removes an outline")
+    clipped = {s for _, s, d in css_rules(css) if d.get("overflow") == "hidden"}
+    for _, selector, decls in css_rules(css):
+        if "scale" in decls.get("transform", ""):
+            for part in selector.split(","):
+                wrapper = part.strip().split(":hover")[0]
+                if wrapper not in clipped:
+                    fail("hover", f"{wrapper} scales an image on hover but is not clipped (overflow: hidden)")
     focus = [d for _, s, d in css_rules(css) if s == "a:focus-visible"]
     if not focus or "var(--accent)" not in focus[0].get("outline", ""):
         fail("focus", "a:focus-visible must draw an outline in the accent colour")
@@ -956,7 +967,7 @@ def check_mark() -> None:
     if not text:
         return
     try:
-        tree = ET.fromstring(text)
+        tree = ET.fromstring(text)  # noqa: S314 -- mark.svg is written by this repository's own generator
     except ET.ParseError as exc:
         fail("parse", f"mark.svg is not valid XML: {exc}")
         return
@@ -1047,7 +1058,7 @@ def edit(docs: Path, name: str, old: str, new: str) -> None:
     path = docs / name
     text = path.read_text(encoding="utf-8")
     if old not in text:
-        raise AssertionError(f"self-test is stale: {old!r} is not in docs/{name}")
+        raise AssertionError(f"self-test is stale: {old!r} is not in docs/{name}")  # noqa: TRY003
     path.write_text(text.replace(old, new, 1), encoding="utf-8")
 
 
@@ -1142,7 +1153,8 @@ def site_links_hold() -> list[str]:
         ("site link on another host", lambda d: edit(d, "index.html", url, "https://example.net/zz-site/")),
         ("site link to another path", lambda d: edit(d, "index.html", url, "https://machine-made.github.io/other/")),
         ("second site link", lambda d: edit(d, "index.html", "</ul>", f'<li><a class="nm" href="{url}">x</a></li></ul>')),
-        ("site link on the banner", lambda d: edit(d, "index.html", f'<a class="pic" href="https://github.com/{full}">', f'<a class="pic" href="{url}">')),
+        ("site link on the banner", lambda d: edit(d, "index.html", f'<a class="pic" href="https://github.com/{full}" aria-label=', f'<a class="pic" href="{url}" aria-label=')),
+        ("linked banner without an accessible name", lambda d: edit(d, "index.html", f' aria-label="{repo} repository"', "")),
     ]
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp) / "site"
@@ -1232,14 +1244,15 @@ def self_test() -> None:
         ],
         ("script tag", "no-js", [], lambda d: edit(d, "index.html", "</body>", "<script>1</script></body>")),
         ("banner without alt", "a11y", [], lambda d: edit(d, "index.html", 'height="469" alt="', 'height="469" alt=" " data-x="')),
-        ("plate image without alt", "a11y", [], lambda d: edit(d, "index.html", f'loading="lazy" alt="{first}"', 'loading="lazy" alt=" "')),
-        ("plate image alt differs from the repo name", "projects", [], lambda d: edit(d, "index.html", f'loading="lazy" alt="{first}"', 'loading="lazy" alt="plate"')),
-        ("plate image without lazy loading", "projects", [], lambda d: edit(d, "index.html", f'height="235" loading="lazy" alt="{first}"', f'height="235" alt="{first}"')),
+        ("plate image without alt attribute", "a11y", [], lambda d: edit(d, "index.html", f'<img src="img/{first}.jpg" width="704" height="235" loading="lazy" alt="">', f'<img src="img/{first}.jpg" width="704" height="235" loading="lazy">')),
+        ("plate image has alt text that repeats the name", "projects", [], lambda d: edit(d, "index.html", f'<img src="img/{first}.jpg" width="704" height="235" loading="lazy" alt="">', f'<img src="img/{first}.jpg" width="704" height="235" loading="lazy" alt="{first}">')),
+        ("plate image without lazy loading", "projects", [], lambda d: edit(d, "index.html", f'<img src="img/{first}.jpg" width="704" height="235" loading="lazy" alt="">', f'<img src="img/{first}.jpg" width="704" height="235" alt="">')),
         ("plate image without size", "responsive", [], lambda d: edit(d, "index.html", f'<img src="img/{first}.jpg" width="704" height="235"', f'<img src="img/{first}.jpg"')),
         ("plate image missing", "files", [], lambda d: (d / "img" / f"{first}.jpg").unlink()),
         ("extra image", "files", [], lambda d: (d / "img" / "extra.jpg").write_bytes(b"\xff\xd8\xff")),
         ("banner is not a JPEG", "images", [], lambda d: (d / "img" / "banner.jpg").write_bytes(b"<svg/>")),
         ("plate has the wrong size", "images", [], lambda d: (d / "img" / f"{first}.jpg").write_bytes((d / "img" / "banner.jpg").read_bytes())),
+        ("banner is cut short", "images", [], lambda d: (d / "img" / "banner.jpg").write_bytes((d / "img" / "banner.jpg").read_bytes()[:-2])),
         ("banner has the wrong size", "images", [], lambda d: (d / "img" / "banner.jpg").write_bytes((d / "img" / f"{first}.jpg").read_bytes())),
         ("image is too large", "images", [], lambda d: (d / "img" / f"{first}.jpg").write_bytes((d / "img" / f"{first}.jpg").read_bytes() + b"\x00" * 400_000)),
         ("money amount", "forbidden", [], lambda d: edit(d, "llms.txt", "## Sites", "$5\n\n## Sites")),
@@ -1262,13 +1275,13 @@ def self_test() -> None:
         ("name paragraph missing in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", f"{BLURB}\n\n", "")),
         ("old footer text", "content", [], lambda d: edit(d, "index.html", "<footer class=\"wrap\">\n<p>", "<footer class=\"wrap\">\n<p>An open-source workshop. ")),
         ("footer line changed", "content", [], lambda d: edit(d, "index.html", "&middot; openfluids", "&middot; fluids")),
-        ("page order changed", "content", [], lambda d: move_footer_up(d)),
+        ("page order changed", "content", [], move_footer_up),
         ("sites missing in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", "## Sites", "## Elsewhere")),
         ("a group heading is renamed", "projects", [], lambda d: edit(d, "index.html", f">{GROUPS[0][0]}</h2>", ">Tools</h2>")),
         ("a group has no label class", "projects", [], lambda d: edit(d, "index.html", '<h2 class="lbl"', "<h2")),
         ("a project is dropped", "projects", [], lambda d: edit(d, "index.html", next(m for m in re.findall(r'<li class="plate">.*?</li>\n', read_index(d), re.S) if f"/{first}" in m), "")),
         *(
-            [("two projects swap places", "projects", [], lambda d: edit_all(d, "index.html", (f"/{first}\"", "/tmp\""), (f"/{second}\"", f"/{first}\""), ("/tmp\"", f"/{second}\"")))]
+            [("two projects swap places", "projects", [], lambda d: edit_all(d, "index.html", (f"/{first}\"", "/zz-swap\""), (f"/{second}\"", f"/{first}\""), ("/zz-swap\"", f"/{second}\"")))]
             if second != first
             else []
         ),
@@ -1339,6 +1352,7 @@ def self_test() -> None:
         ("private name as an element name", "private", ["zzprivate"], lambda d: edit(d, "index.html", "<body>", "<body><zzprivate></zzprivate>")),
         # The behaviour rules of the brief: each break is one rule moved out of its media query.
         ("a hover rule outside the hover query", "hover", [], lambda d: edit(d, "style.css", "box-sizing", "box-sizing:border-box}.plate:hover{margin:0")),
+        ("a scaled plate image is not clipped", "hover", [], lambda d: edit(d, "style.css", "min-width: 0;\n  overflow: hidden;", "min-width: 0;")),
         ("a hover rule in the wrong query", "hover", [], lambda d: edit(d, "style.css", "box-sizing", "box-sizing:border-box}@media (min-width: 1px){.plate:hover{margin:0}}.zz{margin:0")),
         ("a hover rule in the hover query is allowed", None, [], lambda d: edit(d, "style.css", "box-sizing", "box-sizing:border-box}@media (hover: hover){.zz:hover{margin:0}}.zz{margin:0")),
         ("a transition outside the motion query", "motion", [], lambda d: edit(d, "style.css", "box-sizing", "box-sizing:border-box}.zz{transition:color 1s")),
@@ -1376,7 +1390,7 @@ def self_test() -> None:
             print(f"SELF-TEST FAIL: {title}")
 
     with tempfile.TemporaryDirectory() as tmp:
-        for title, rule, deny, mutate in cases + [("clean copy", None, [], lambda d: None)]:
+        for title, rule, deny, mutate in [*cases, ("clean copy", None, [], lambda d: None)]:
             root = Path(tmp) / "case"
             shutil.rmtree(root, ignore_errors=True)
             shutil.copytree(real, root / "docs")
@@ -1408,6 +1422,9 @@ def self_test() -> None:
             {"theme": {"ground": "#000", "text": "#ffffff", "muted": "#888888", "accent": "#ff0000", "font": WEFT, "size": 14, "line_size": 22}},
             {"theme": {**json.loads((ROOT / "site.json").read_text(encoding="utf-8"))["theme"], "font": "Comic Sans"}},
             {"nav": []},
+            {"nav": ["machine-made"]},
+            {"redirects": {"style.css": "https://example.net/x"}},
+            {"redirects": {"llms.txt": "https://example.net/x"}},
         ]
         for changes in bad_sites:
             report(build_rejects(changes), f"build.py accepted {str(changes)[:60]}")
@@ -1435,7 +1452,7 @@ def move_footer_up(docs: Path) -> None:
     text = read_index(docs)
     foot = re.search(r"<footer.*?</footer>\n", text, re.S)
     if foot is None:
-        raise AssertionError("self-test is stale: no footer in docs/index.html")
+        raise AssertionError("self-test is stale: no footer in docs/index.html")  # noqa: TRY003
     text = text.replace(foot.group(0), "").replace('<main id="main"', foot.group(0) + '<main id="main"', 1)
     (docs / "index.html").write_text(text, encoding="utf-8")
 
@@ -1458,8 +1475,12 @@ def load_allow(folder: str) -> None:
         GROUPS = tuple((str(title), tuple(str(r) for r in repos)) for title, repos in allow["groups"])
         SITE_LINKS = {str(k): str(v) for k, v in allow.get("site_links", {}).items()}
         REDIRECTS = {str(k): str(v) for k, v in allow.get("redirects", {}).items()}
+        site_owner = str(json.loads((root / "site.json").read_text(encoding="utf-8"))["owner"])
     except (OSError, ValueError, KeyError, TypeError) as exc:
         print(f"FAIL args: {folder}/allow.json is missing or incomplete ({exc.__class__.__name__})")
+        sys.exit(2)
+    if site_owner != OWNER:
+        print(f"FAIL args: {folder}/allow.json owner {OWNER!r} differs from site.json owner {site_owner!r}")
         sys.exit(2)
     if THEME["font"] not in FONT_SPECS or SELF not in {n for n, _ in SITES}:
         print(f"FAIL args: {folder}/allow.json names a font or a current site that the checks do not know")

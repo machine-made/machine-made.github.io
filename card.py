@@ -47,10 +47,6 @@ ROWS = 7
 
 MARK_SIZE, MARK_CELL, MARK_GAP = 30, 8, 3
 
-RULE_PITCH = 8
-RULE_BIG_R = 2.2
-RULE_SMALL = 1.2
-
 CAPTION = "The card: the line above in 7-bit ASCII."
 
 
@@ -152,20 +148,3 @@ def mark_svg() -> str:
     ]
     size = str(MARK_SIZE)
     return svg(size, size, f"0 0 {size} {size}", "machine-made mark", themed({"k": "fg"}), "\n".join(squares))
-
-
-def rule_size(text: str) -> tuple[int, int]:
-    return (RULE_PITCH * len(text) - 1) * RULE_PITCH, RULE_PITCH
-
-
-def rule_svg(text: str) -> str:
-    """One row of dots that encodes text: 7 slots per character and one empty slot between
-    characters. A big dot is a 1 bit, a small dot a 0 bit."""
-    path = ""
-    for index, char in enumerate(text):
-        for slot, bit in enumerate(bits(char)):
-            cx = (RULE_PITCH * index + slot + 0.5) * RULE_PITCH
-            path += circle(cx, RULE_PITCH / 2, RULE_BIG_R) if bit else square(cx, RULE_PITCH / 2, RULE_SMALL)
-    width, height = rule_size(text)
-    body = f'<path class="d" d="{path}"/>'
-    return svg(str(width), str(height), f"0 0 {width} {height}", f"{text} in 7-bit ASCII", themed({"d": "rule"}, red=False), body)

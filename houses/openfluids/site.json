@@ -1,8 +1,17 @@
 {
   "name": "openfluids",
-  "tagline": "Open tools for fluid flows.",
-  "subtitle": "A machine-made house: from the run to the result.",
   "owner": "openfluids",
+  "line": "Open tools for fluid flows: state-of-the-art methods, ultra-modern low-memory code, for humans and agents.",
+  "blurb": "Open code for fluid mechanics.",
+  "theme": {
+    "ground": "#0d1116",
+    "text": "#e6eef2",
+    "muted": "#8395a0",
+    "accent": "#5cc8d6",
+    "font": "Lato",
+    "size": 15,
+    "line_size": 23
+  },
   "nav": [
     {
       "name": "machine-made",
@@ -10,11 +19,8 @@
     },
     {
       "name": "openfluids",
+      "url": "https://openfluids.github.io/",
       "self": true
-    },
-    {
-      "name": "fonts",
-      "url": "https://machine-made.github.io/type/"
     },
     {
       "name": "BoringQuantSystems",
@@ -23,48 +29,68 @@
   ],
   "groups": [
     {
+      "title": "Stability",
+      "projects": [
+        {
+          "repo": "linstabpy",
+          "line": "linear stability and resolvent analysis",
+          "site": "https://linstabpy.vercel.app/"
+        },
+        {
+          "repo": "nekStab",
+          "line": "stability and bifurcation for Nek5000",
+          "owner": "nekStab"
+        }
+      ]
+    },
+    {
       "title": "Analysis",
       "projects": [
         {
           "repo": "openmodalpy",
-          "line": "Modal decompositions (POD, DMD, SPOD and more) in one Python workflow"
+          "line": "nine modal decompositions, one API"
         },
         {
-          "repo": "dsgbr",
-          "line": "Peak detection for noisy, sloped power spectra, benchmarked against SciPy"
+          "repo": "dynachaos",
+          "line": "Lyapunov exponents, recurrence, entropy",
+          "site": "https://openfluids.github.io/dynachaos/"
         },
         {
           "repo": "fftkit",
-          "line": "One FFT API over many backends, with correctness checks and benchmarks"
+          "line": "spectra, one FFT API over eight backends"
+        },
+        {
+          "repo": "dsgbr",
+          "line": "peaks in noisy, sloped spectra"
+        },
+        {
+          "repo": "chaos-atlas",
+          "line": "chaotic systems in the browser",
+          "site": "https://openfluids.github.io/chaos-atlas/"
         }
       ]
     },
     {
-      "title": "Runs and frames",
+      "title": "Solvers",
+      "projects": [
+        {
+          "repo": "dolfinx-rans",
+          "line": "RANS turbulence in DOLFINx"
+        }
+      ]
+    },
+    {
+      "title": "Runs",
       "projects": [
         {
           "repo": "hpckit",
-          "line": "HPC work over SSH and Slurm: run packets, receipts, artifact sync"
+          "line": "Slurm runs from a local checkout"
         },
         {
           "repo": "quadros",
-          "line": "CFD snapshots rendered into checked frames and videos"
+          "line": "snapshots to frames and videos"
         }
       ]
     }
-  ],
-  "houses": [
-    {
-      "name": "machine-made",
-      "line": "the umbrella over every house",
-      "url": "https://machine-made.github.io/"
-    },
-    {
-      "name": "BoringQuantSystems",
-      "line": "deterministic quant engines",
-      "url": "https://boringquantsystems.github.io/"
-    }
-  ],
-  "footer": "An open-source workshop. Built by agents, guided by humans.",
-  "year": 2026
+  ]
 }

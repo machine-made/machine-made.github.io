@@ -37,7 +37,7 @@ deterministic: the same source tree gives the same bytes.
 | `shots.py` | Screenshots at 1440 px and 375 px, the scroll check and the line-length check. Writes `shots/` |
 | `DESIGN.md` | The grid, the type, the colour, the mark, the weave and the rows of dots |
 | `docs/` | The built site. Do not edit by hand |
-| `houses/<name>/site.json` | A house site from this same generator: boringquantsystems |
+| `houses/<name>/site.json` | A house site from this same generator: openfluids, boringquantsystems |
 | `houses/<name>/allow.json` | That house's public list, kept apart from its `site.json`: the checks pass only when both agree |
 | `publish.sh` | Builds one house into the `docs/` of its own Pages repository. `gate.sh` builds and checks every house |
 
@@ -82,3 +82,5 @@ same bytes.
 ## Licence
 
 Apache-2.0. See [LICENSE](LICENSE).
+
+The fonts in `fonts/` stay under the SIL Open Font License 1.1. See `fonts/mm-sans-OFL.txt` and `fonts/mm-weft-OFL.txt`.

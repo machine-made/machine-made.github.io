@@ -1,45 +1,10 @@
-:root{--bg:#ffffff;--fg:#000000;--muted:#595959;--rule:#d9d9d9;--red:#e5251c;--split:34.091%;--frame-ratio:1408 / 469;--weave-ratio:928 / 469;--name-chars:12;}
-@media (prefers-color-scheme:dark){:root{--bg:#000000;--fg:#ffffff;--muted:#a6a6a6;--rule:#2e2e2e;--red:#e5251c;}}
-@font-face {
-  font-family: "machine-made Weft";
-  src: url(fonts/mm-weft.woff2) format("woff2");
-  font-weight: 100 900;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "machine-made Sans";
-  src: url(fonts/mm-sans.woff2) format("woff2");
-  font-weight: 200 800;
-  font-style: normal;
-  font-display: swap;
-}
+@font-face{font-family:"machine-made Weft";src:url(fonts/mm-weft.woff2) format("woff2");font-weight:100 900;font-style:normal;font-display:swap}
+:root{--bg:#0a0a0b;--fg:#ecebe6;--muted:#8b8b90;--accent:#e5251c;--edge:#222223;--font:"machine-made Weft", ui-monospace, "SF Mono", Menlo, Consolas, monospace;--mono:"machine-made Weft", ui-monospace, "SF Mono", Menlo, Consolas, monospace;--fs:0.875rem;--ls:1.375rem;}
+/* The colours, the fonts and the sizes of a house come first, from build.py (:root). */
 
 :root {
-  --sans: "machine-made Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --mono: "machine-made Weft", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  --s-1: 0.85rem;
-  --s0: 1.0625rem;
-  --s1: 1.328rem;
-  --s2: 1.66rem;
-  --sp-1: 4px;
-  --sp-2: 8px;
-  --sp-3: 16px;
-  --sp-4: 24px;
-  --sp-5: 32px;
-  --sp-6: 48px;
-  --sp-7: 64px;
-  --sp-8: 96px;
-  --sp-9: 128px;
   --gutter: 16px;
-  --column-gap: 24px;
-  --max: 1280px;
-  --measure: 34rem;
-  /* Weft is wide: every glyph has a 750-unit advance and narrow ink, so mono type is set tighter. */
-  --mono-track: -0.06em;
-  --mono-track-small: -0.03em;
-  --section: var(--sp-8);
+  --max: 1200px;
 }
 
 @media (min-width: 720px) {
@@ -51,7 +16,6 @@
 @media (min-width: 1100px) {
   :root {
     --gutter: 32px;
-    --section: var(--sp-9);
   }
 }
 
@@ -62,7 +26,7 @@
 }
 
 html {
-  color-scheme: light dark;
+  color-scheme: dark;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
@@ -70,20 +34,15 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
+  padding-block: 14px 22px;
   background: var(--bg);
   color: var(--fg);
-  font-family: var(--sans);
-  font-size: var(--s0);
-  line-height: 1.55;
-  /* The word space of machine-made Sans is narrow (170 units). */
-  word-spacing: 0.05em;
+  font: 400 var(--fs) / 1.55 var(--font);
   -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
 }
 
 h1,
 h2,
-h3,
 p,
 ul {
   margin: 0;
@@ -102,18 +61,13 @@ img {
 
 a {
   color: inherit;
-  text-decoration-line: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 0.22em;
-}
-
-a:hover {
-  text-decoration-thickness: 2px;
+  text-decoration: none;
 }
 
 a:focus-visible {
-  outline: 2px solid var(--fg);
+  outline: 2px solid var(--accent);
   outline-offset: 3px;
+  border-radius: 2px;
 }
 
 .skip {
@@ -121,16 +75,15 @@ a:focus-visible {
   top: -5rem;
   left: var(--gutter);
   z-index: 10;
-  padding: var(--sp-2) var(--sp-3);
+  padding: 8px 16px;
   background: var(--fg);
   color: var(--bg);
   font-family: var(--mono);
-  font-size: var(--s-1);
-  letter-spacing: var(--mono-track-small);
+  font-size: 0.75rem;
 }
 
 .skip:focus {
-  top: var(--gutter);
+  top: 8px;
 }
 
 .wrap {
@@ -138,269 +91,153 @@ a:focus-visible {
   margin-inline: auto;
 }
 
-h1,
-h2,
-.skip,
-.projects a,
-footer > .wrap {
-  word-spacing: normal;
+/* The top bar: the three sites. Weft sets it on every house. */
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 16px;
+  margin-bottom: 14px;
+  font: 400 0.75rem / 1 var(--mono);
+  letter-spacing: 0.04em;
 }
 
-h2 {
-  font-family: var(--mono);
-  font-weight: 500;
-  font-size: var(--s2);
-  line-height: 1.2;
-  letter-spacing: var(--mono-track);
+.bar a {
+  padding-block: 6px;
+  color: var(--muted);
+}
+
+.bar a[aria-current="page"] {
+  color: var(--fg);
+  text-decoration: underline 2px var(--accent);
+  text-underline-offset: 6px;
+}
+
+/* The banner is the image of the GitHub profile. Its top and bottom edges fade into the ground. */
+.banner {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1408 / 469;
+  object-fit: cover;
+  mask-image: linear-gradient(transparent, #000 10%, #000 90%, transparent);
+}
+
+.duo {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: end;
+  margin-top: 20px;
+}
+
+.line {
+  font-size: var(--ls);
+  line-height: 1.3;
   text-wrap: balance;
 }
 
-p {
-  text-wrap: pretty;
-}
-
-.tabs {
-  padding-top: var(--gutter);
-}
-
-.tabs ul {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2) var(--sp-4);
-  margin: 0;
-  padding: 0 0 var(--sp-2);
-  list-style: none;
-  border-bottom: 1px solid var(--rule);
-}
-
-.tabs a {
-  font-family: var(--mono);
-  font-size: var(--s-1);
-  letter-spacing: var(--mono-track-small);
-  color: var(--muted);
-  text-decoration: none;
-}
-
-.tabs a:hover,
-.tabs a[aria-current="page"] {
-  color: var(--fg);
-  text-decoration: underline;
-  text-underline-offset: 0.3em;
-}
-
-.masthead {
-  padding-top: var(--gutter);
-}
-
-.masthead-frame {
-  display: flex;
-  flex-direction: column;
-}
-
-.masthead-text {
-  container-type: inline-size;
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-6);
-  padding-block: var(--sp-5) var(--sp-6);
-}
-
-.mark {
-  width: 3.5rem;
-  height: 3.5rem;
-}
-
-/* Weft sets 0.75 em a character, 0.67 em with the -0.08 em tracking. A long name shrinks to fit its
-   column instead of running into the weave; a short name keeps the size the scale gives it. */
-.masthead h1 {
-  font-family: var(--mono);
-  font-weight: 500;
-  font-size: min(clamp(1.9rem, 9vw, 3rem), calc(95cqi / (var(--name-chars) * 0.67)));
-  line-height: 1;
-  letter-spacing: -0.08em;
-  /* FRAG 12: ink-trap notches, the body-safe range of Weft. Only the name has it. */
-  font-variation-settings: "FRAG" 12;
-}
-
-.tagline,
-.subtitle {
-  font-size: var(--s1);
-  line-height: 1.3;
-}
-
-.tagline {
-  margin-top: var(--sp-3);
-}
-
-.tagline span {
-  display: block;
-}
-
-.subtitle {
-  margin-top: var(--sp-1);
+.blurb {
+  max-width: 52ch;
+  font-size: calc(var(--fs) * 0.88);
   color: var(--muted);
 }
 
-.hero {
-  width: 100%;
-  aspect-ratio: var(--weave-ratio);
-  object-fit: cover;
-  object-position: 100% 50%;
-}
-
-@media (min-width: 720px) {
-  .hero {
-    aspect-ratio: var(--frame-ratio);
-  }
-
-  .masthead-frame {
-    position: relative;
-  }
-
-  .masthead-text {
-    position: absolute;
-    inset: 0 auto 0 0;
-    z-index: 1;
-    width: var(--split);
-    justify-content: space-between;
-    padding: 0 var(--sp-3) var(--sp-3) 0;
-  }
-
-  .mark {
-    width: clamp(2rem, 4.4vw, 3.5rem);
-    height: clamp(2rem, 4.4vw, 3.5rem);
-  }
-
-  .masthead h1 {
-    font-size: min(clamp(1.5rem, 3.4vw, 3.25rem), calc(95cqi / (var(--name-chars) * 0.67)));
-  }
-
-  .tagline {
-    margin-top: var(--sp-4);
-  }
-
-  .tagline,
-  .subtitle {
-    font-size: clamp(1rem, 1.5vw, var(--s1));
+@media (max-width: 520px) {
+  .duo {
+    grid-template-columns: 1fr;
   }
 }
 
-.section {
-  margin-top: var(--section);
-}
-
-.section > .wrap {
-  padding-top: var(--sp-4);
-}
-
-.punch {
-  display: block;
-  width: min(100% - 2 * var(--gutter), var(--max));
-  height: 8px;
-  margin-inline: auto;
-  object-fit: none;
-  object-position: left center;
-}
-
-.split h2 {
-  margin-bottom: var(--sp-4);
-}
-
-@media (min-width: 720px) {
-  .split {
-    display: grid;
-    grid-template-columns: var(--split) minmax(0, 1fr);
-    align-items: baseline;
-  }
-
-  .split h2 {
-    margin-bottom: 0;
-  }
-}
-
-.split > p,
-.projects p,
-.papers p {
-  max-width: var(--measure);
-}
-
-.projects li,
-.papers li {
-  display: grid;
-  position: relative;
-  gap: var(--sp-1);
-  padding-block: var(--sp-3);
-}
-
-.projects li:first-child,
-.papers li:first-child {
-  padding-top: 0;
-}
-
-.projects li + li,
-.papers li + li {
-  border-top: 1px solid var(--rule);
-}
-
-@media (min-width: 1000px) {
-  .projects li,
-  .papers li {
-    grid-template-columns: 13rem minmax(0, 1fr);
-    gap: var(--sp-4);
-    align-items: baseline;
-  }
-}
-
-.papers .status {
-  font-family: var(--mono);
-  font-size: var(--s-1);
-  letter-spacing: var(--mono-track-small);
+/* A small group label, set in Weft with a square of the accent colour. */
+.lbl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 32px 0 10px;
+  font: 400 0.71875rem / 1 var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--muted);
 }
 
-.projects a {
-  justify-self: start;
-  font-family: var(--mono);
-  font-weight: 500;
-  letter-spacing: var(--mono-track-small);
-}
-
-.projects .site {
-  position: relative;
-  z-index: 1;
-  margin-left: var(--sp-2);
-  font-family: var(--mono);
-  font-weight: 500;
-  letter-spacing: var(--mono-track-small);
-}
-
-.projects .site::after {
-  content: none;
-}
-
-.projects a::after {
+.lbl::before {
   content: "";
-  position: absolute;
-  inset: 0;
+  width: 6px;
+  height: 6px;
+  background: var(--accent);
 }
 
-.projects a:focus-visible {
-  outline: none;
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+  gap: 14px 12px;
 }
 
-.projects a:focus-visible::after {
-  outline: 2px solid var(--fg);
-  outline-offset: -2px;
+.plate {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  min-width: 0;
 }
 
-footer > .wrap {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: var(--sp-2) var(--sp-4);
-  padding-bottom: var(--sp-7);
+.whole {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.pic {
+  display: block;
+  overflow: hidden;
+}
+
+.plate img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 1;
+  object-fit: cover;
+  outline: 1px solid var(--edge);
+  outline-offset: -1px;
+  border-radius: 2px;
+}
+
+.plate .nm {
+  font-size: calc(var(--fs) * 0.95);
+  overflow-wrap: anywhere;
+}
+
+.plate .ds {
+  font-size: calc(var(--fs) * 0.8);
   color: var(--muted);
-  font-family: var(--mono);
-  font-size: var(--s-1);
-  letter-spacing: var(--mono-track-small);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+footer {
+  margin-top: 40px;
+  font: 400 0.71875rem / 1 var(--mono);
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+/* Hover effects only for pointers that hover. Motion only when the reader has not asked for less. */
+@media (hover: hover) {
+  .whole:hover .nm,
+  .nm:hover {
+    text-decoration: underline 1px var(--accent);
+    text-underline-offset: 0.2em;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a,
+  img {
+    transition: color 0.2s ease, transform 0.2s ease;
+  }
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .whole:hover img,
+  .pic:hover img {
+    transform: scale(1.02);
+  }
 }

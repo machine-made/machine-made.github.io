@@ -5,6 +5,11 @@ Prints OK and exits 0 when every rule holds. Otherwise prints one line per failu
 `python3 check_site.py --self-test` breaks a copy of docs/ in many ways and checks that each
 break is caught.
 
+The checks read the public list of the house from allow.json (next to site.json): the owner, the
+line, the paragraph on the name, the colours and the font, the three sites, the projects in their
+groups, the project sites and the redirects. The page passes only when site.json and allow.json
+agree.
+
 Private repository names are not kept in this repository. Rules that need them read a list
 from a file outside the repository: `python3 check_site.py --deny FILE` or MM_DENY_FILE=FILE.
 FILE has one name per line. Without it, the allowlist rules still reject every link and every
@@ -30,63 +35,45 @@ from urllib.parse import unquote, urlsplit
 ROOT = Path(__file__).resolve().parent
 DOCS = ROOT / "docs"
 
-OWNER = "machine-made"
-GROUPS = (
-    ("Science and numerics", ("minuit2-rs", "libsvm-rs", "nebula-quanta", "nanochat-rs")),
-    ("Desktop and editor tools", ("pdf-next", "vscode-pdf-next", "vscode-diff-next", "homebrew-tap")),
-    ("Tools for agents", ("bun-do", "fortran-lsp", "pi-effort", "pi-rethread")),
-    ("Type", ("type",)),
-)
-PUBLIC_REPOS = tuple(repo for _, repos in GROUPS for repo in repos)
+# The public list of the house. load_allow() fills it from allow.json.
+OWNER = ""
+LINE = ""
+BLURB = ""
+THEME: dict[str, str] = {}
+SELF = ""
+# The three sites as (name, url), in the order of the top bar.
+SITES: tuple[tuple[str, str], ...] = ()
+# (title, ("owner/repo", ...)) in page order.
+GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = ()
+# "owner/repo" -> the project's own site or documentation, linked on the plate's name.
 SITE_LINKS: dict[str, str] = {}
 # Moved repositories: docs/<name>/index.html forwards the old path to the new home.
-REDIRECTS = {
-    "chaos-atlas": "https://openfluids.github.io/chaos-atlas/",
-    "dynachaos": "https://github.com/openfluids/dynachaos",
+REDIRECTS: dict[str, str] = {}
+
+WEFT = "machine-made Weft"
+# The fonts the generator can ship: family -> (file stem, licence file, font-weight range).
+FONT_SPECS = {
+    WEFT: ("mm-weft", "mm-weft-OFL.txt", "100 900"),
+    "Lato": ("lato-400", "lato-OFL.txt", "400"),
+    "EB Garamond": ("eb-garamond-400", "eb-garamond-OFL.txt", "400"),
 }
-HOUSE_URLS = ("https://openfluids.github.io/", "https://boringquantsystems.github.io/")
-# The tab row at the top: the other sites of the houses.
-TAB_URLS = ("https://machine-made.github.io/type/",)
-TAGLINE = "Made by machines. Proven for machines."
-SUBTITLE = "Foundations for science and engineering, built for humans today and agents tomorrow."
-FOOTER = "An open-source workshop. Built by agents, guided by humans."
-# The papers the page may list, as (status, title). No link until a paper is public.
-PAPERS = (
-    ("under review", "linstabpy: open-source compressible stability and resolvent analysis"),
-    ("in preparation", "LoomBench: a numerical benchmark for coding agents, with hidden oracles, timings and an audit trail"),
-    (
-        "in preparation",
-        "From Locking to Collective Chaos: A Reproducible Review of Kaneko's Circle Maps, Torus Instabilities, "
-        "Coupled Map Lattices and Globally Coupled Maps",
-    ),
-    ("in preparation", "OpenModalPy: modal decomposition of spatiotemporal data"),
-)
-# The lab log entries the page may list, as (status, title). No link until a post is approved and public.
-LOG = (
-    (
-        "in preparation",
-        (
-            "Algebraic Patterns, the machine-made lab log: short posts built on the lab's own data, "
-            "each with a section on what failed"
-        ),
-    ),
-)
-BASE_FILES = {"index.html", "style.css", "mark.svg", "llms.txt"}
-# The two fonts of the site and their licences, served from docs/fonts/. The page loads nothing else.
-FONT_FAMILIES = {"machine-made Weft": "mm-weft", "machine-made Sans": "mm-sans"}
-FONT_FILES = {f"fonts/{slug}{end}" for slug in FONT_FAMILIES.values() for end in (".woff2", "-OFL.txt")}
-# Public sites that a licence text names. Only the licences may name them. The font licences name
-# machine-made/type, the fonts' home, on every house site, not only on the machine-made one.
+# Public sites that a licence text names. Only the licences may name them.
 LICENCE_URLS = {
-    "fonts/mm-sans-OFL.txt": ("github.com/tokotype/PlusJakartaSans", "github.com/machine-made/type"),
     "fonts/mm-weft-OFL.txt": ("github.com/machine-made/type",),
+    "fonts/eb-garamond-OFL.txt": ("github.com/octaviopardo/EBGaramond12",),
 }
-RULE_PITCH = 8
-CODE_BITS = 7
+BANNER_SIZE = (1408, 469)
+PLATE_SIZE = (704, 235)
+MAX_IMAGE_BYTES = 400_000
+# The one place that holds a non-ASCII character: the footer reads this line.
+BAR_TEXT = "machine-made · openfluids · BoringQuantSystems"
+BASE_FILES = {"index.html", "style.css", "mark.svg", "llms.txt", "img/banner.jpg"}
+# The one gradient the page uses: it fades the top and bottom edges of the banner into the ground.
+MASK = "mask-image: linear-gradient(transparent, #000 10%, #000 90%, transparent);"
+GRID = "repeat(auto-fill, minmax(min(100%, 240px), 1fr))"
 FILE_NAME = re.compile(r"[a-z0-9][a-z0-9._-]*")
-FRAME = (1408, 469)
 FORBIDDEN = re.compile(
-    r"[$\u20ac\u00a3]\s?[0-9]|\b(?:usd|chf|eur)\s?[0-9]|[0-9]\s?(?:usd|chf|eur)\b"
+    r"[$€£]\s?[0-9]|\b(?:usd|chf|eur)\s?[0-9]|[0-9]\s?(?:usd|chf|eur)\b"
     r"|tokens|punchcard|night-shift|nexus",
     re.I,
 )
@@ -145,6 +132,7 @@ SVG_FORBIDDEN = {
     "script", "foreignObject", "image", "iframe", "object", "embed", "audio", "video",
     "linearGradient", "radialGradient", "stop",
 }
+RED = "#e5251c"
 
 failures: list[str] = []
 
@@ -180,6 +168,23 @@ def site_name() -> str | None:
         fail("site", "site.json name is not a safe file name")
         return None
     return name
+
+
+def repos_of(groups: tuple[tuple[str, tuple[str, ...]], ...] | None = None) -> list[str]:
+    """Every 'owner/repo' of the public list, in page order."""
+    return [full for _, fulls in (GROUPS if groups is None else groups) for full in fulls]
+
+
+def families() -> list[str]:
+    """The font families the house loads: Weft, then its own text face when that is not Weft."""
+    return [WEFT] + ([THEME["font"]] if THEME.get("font") not in (None, WEFT) else [])
+
+
+def font_files() -> set[str]:
+    return {
+        f"fonts/{name}" for fam in families() for name in (f"{FONT_SPECS[fam][0]}.woff2", FONT_SPECS[fam][1])
+        if fam in FONT_SPECS
+    }
 
 
 Attrs = dict[str, str | None]
@@ -233,6 +238,8 @@ class Page(HTMLParser):
             self.links.append({"href": a["href"], "rel": a.get("rel") or "", "tag": "link"})
         if tag == "img":
             self.imgs.append(a)
+            if self.heading is not None:
+                self.heading[1] += a.get("alt") or ""
         if tag in ("h1", "h2", "h3"):
             self.heading = [tag, ""]
         if tag == "p":
@@ -337,15 +344,9 @@ def slug(title: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
 
 
-def rule_titles(name: str | None) -> list[str]:
-    """The text that each decorative row of dots must encode, in page order: the group titles,
-    Houses, and the site name for the footer."""
-    return section_titles() + ([name] if name else [])
-
-
 def section_titles() -> list[str]:
-    """The h2 headings in page order: the groups, Papers and Lab log when they have entries, Houses."""
-    return [title for title, _ in GROUPS] + (["Papers"] if PAPERS else []) + (["Lab log"] if LOG else []) + ["Houses"]
+    """The h2 headings in page order: the groups."""
+    return [title for title, _ in GROUPS]
 
 
 def redirect_page(name: str, url: str) -> str:
@@ -366,11 +367,9 @@ def check_redirects() -> None:
             fail("redirects", f"docs/{name}/index.html must be the plain redirect page to {url}")
 
 
-def check_files(name: str | None) -> None:
-    wanted = BASE_FILES | FONT_FILES | {f"rules/{slug(title)}.svg" for title in rule_titles(name)}
+def check_files() -> None:
+    wanted = BASE_FILES | font_files() | {f"img/{full.split('/')[1]}.jpg" for full in repos_of()}
     wanted |= {f"{folder}/index.html" for folder in REDIRECTS}
-    if name:
-        wanted.add(f"heroes/{name}.svg")
     present = {p.relative_to(DOCS).as_posix() for p in DOCS.rglob("*") if p.is_file()}
     for extra in sorted(present - wanted):
         fail("files", f"docs/{extra} is not part of the one-page site")
@@ -388,6 +387,11 @@ def local_target(href: str) -> Path | None:
     return target if root in target.parents else None
 
 
+def allowed_https() -> set[str]:
+    """Every https address that the page may link: the three sites, the project sites, the repositories."""
+    return {u for _, u in SITES} | set(SITE_LINKS.values()) | {f"https://github.com/{full}" for full in repos_of()}
+
+
 def check_html(page: Page, html_text: str, name: str | None) -> None:
     for problem in page.problems:
         fail("parse", problem)
@@ -401,8 +405,10 @@ def check_html(page: Page, html_text: str, name: str | None) -> None:
         fail("a11y", "the html element has no lang")
     if not re.search(r'<meta name="viewport" content="width=device-width, initial-scale=1">', html_text):
         fail("responsive", "no viewport meta")
-    if '<meta name="color-scheme" content="light dark">' not in html_text:
-        fail("dark", "no color-scheme meta")
+    if '<meta name="color-scheme" content="dark">' not in html_text:
+        fail("dark", "the page is dark only: the color-scheme meta must be dark")
+    if f'<meta name="theme-color" content="{THEME.get("ground", "")}">' not in html_text:
+        fail("dark", "the theme-color meta must be the ground colour of the house")
     if re.search(r"<title>[^<]+</title>", html_text) is None:
         fail("a11y", "no title")
     for problem in page.unknown_attrs:
@@ -410,12 +416,12 @@ def check_html(page: Page, html_text: str, name: str | None) -> None:
     for css in page.styles:
         check_refs(css, "index.html", "css")
         check_colour_names(css, "index.html")
-        if split_accent(colours_of(css, "index.html")):
+        if colours_of(css, "index.html"):
             fail("accent", "index.html has a style block with a colour of its own; colours belong in style.css")
     for forbidden in FORBIDDEN_TAGS:
         if forbidden in page.tags:
             fail("no-js", f"<{forbidden}> is not allowed on a page that needs no script")
-    for tag in ("header", "main", "footer", "h1", "h2", "ul"):
+    for tag in ("header", "nav", "main", "footer", "h1", "h2", "ul"):
         if tag not in page.tags:
             fail("semantic", f"no <{tag}>")
     if page.tags.count("h1") != 1:
@@ -425,20 +431,20 @@ def check_html(page: Page, html_text: str, name: str | None) -> None:
     shown = site_title(name)
     if shown and ("h1", shown) not in page.headings:
         fail("content", f"the h1 must be the site name, {shown}")
-    if name and not any(img.get("src") == f"heroes/{name}.svg" for img in page.imgs):
-        fail("hero", f"the header must show heroes/{name}.svg")
     first: Attrs = page.first_link or {}
     if first.get("href") != "#main" or "main" not in page.ids:
         fail("a11y", "the first link must be a skip link to #main")
     for img in page.imgs:
-        decorative = img.get("alt") == "" and img.get("aria-hidden") == "true"
-        if not decorative and not (img.get("alt") or "").strip():
-            fail("a11y", f"image {img.get('src')} has no alt text and is not marked aria-hidden")
+        # The banner carries the org name. A plate image is decorative (alt=""): its link names it.
+        banner = img.get("class") == "banner"
+        if "alt" not in img or (banner and not (img.get("alt") or "").strip()):
+            fail("a11y", f"image {img.get('src')} has no alt attribute, or the banner has empty alt text")
         if not (img.get("width") and img.get("height")):
             fail("responsive", f"image {img.get('src')} has no width and height")
         target = local_target(img.get("src") or "")
         if target is None or not target.is_file():
             fail("links", f"image {img.get('src')} does not resolve inside docs/")
+    allowed = allowed_https()
     for link in page.links:
         href = link.get("href") or ""
         parts = urlsplit(href)
@@ -450,12 +456,7 @@ def check_html(page: Page, html_text: str, name: str | None) -> None:
                 fail("links", f"{href} is not an https link")
             elif link.get("tag") == "link":
                 fail("links", f"{href} is an external resource; the page loads only files in docs/")
-            elif not (
-                href in HOUSE_URLS
-                or href in TAB_URLS
-                or href in SITE_LINKS.values()
-                or any(href == f"https://github.com/{OWNER}/{repo}" for repo in PUBLIC_REPOS)
-            ):
+            elif href not in allowed:
                 fail("links", f"{href} is not in the public list")
         else:
             target = local_target(href)
@@ -487,42 +488,48 @@ def check_refs(text: str, where: str, kind: CssKind) -> None:
                 fail("links", f"{where} refers to {target[:50]!r}, which is not a file inside docs/")
 
 
-LOCAL_WOFF2 = re.compile(r"\s*url\(\s*(['\"]?)fonts/([a-z-]+)\.woff2\1\s*\)\s*format\(\s*(['\"])woff2\3\s*\)\s*")
+LOCAL_WOFF2 = re.compile(r"\s*url\(\s*(['\"]?)fonts/([a-z0-9-]+)\.woff2\1\s*\)\s*format\(\s*(['\"])woff2\3\s*\)\s*")
 
 
 def check_fonts(html_text: str) -> None:
-    """The fonts are files in docs/fonts/: one @font-face per family with a local woff2 and
-    font-display: swap, each file a real woff2, each preload a local woff2 with crossorigin."""
+    """The fonts are files in docs/fonts/: one @font-face per family of the house with a local woff2,
+    font-display: swap and the right weight range, each file a real woff2, each preload a local woff2
+    with crossorigin."""
     css = re.sub(r"/\*.*?\*/", " ", read("style.css"), flags=re.S)
     faces = re.findall(r"@font-face\s*\{([^}]*)\}", css, re.I)
+    wanted = families()
     seen: set[str] = set()
     for face in faces:
         family = re.search(r"font-family\s*:\s*(['\"])(.*?)\1", face)
         src = re.search(r"(?<![\w-])src\s*:\s*([^;]*)", face)
         source = re.fullmatch(LOCAL_WOFF2, src.group(1)) if src else None
         name = family.group(2) if family else "?"
-        if name not in FONT_FAMILIES:
-            fail("fonts", f"style.css has an @font-face for {name!r}; the site uses only {', '.join(FONT_FAMILIES)}")
+        if name not in wanted:
+            fail("fonts", f"style.css has an @font-face for {name!r}; this house uses only {', '.join(wanted)}")
             continue
         seen.add(name)
-        if not source or source.group(2) != FONT_FAMILIES[name]:
-            fail("fonts", f"the @font-face of {name} must load only fonts/{FONT_FAMILIES[name]}.woff2")
+        stem, _, weight = FONT_SPECS[name]
+        if not source or source.group(2) != stem:
+            fail("fonts", f"the @font-face of {name} must load only fonts/{stem}.woff2")
         if not re.search(r"font-display\s*:\s*swap\b", face):
             fail("fonts", f"the @font-face of {name} needs font-display: swap")
-    for name in sorted(set(FONT_FAMILIES) - seen):
+        if not re.search(rf"font-weight\s*:\s*{weight}\s*(;|$)", face):
+            fail("fonts", f"the @font-face of {name} must have font-weight {weight}")
+    for name in sorted(set(wanted) - seen):
         fail("fonts", f"style.css has no @font-face for {name}")
-    for rel in sorted(f for f in FONT_FILES if f.endswith(".woff2")):
+    woffs = sorted(f for f in font_files() if f.endswith(".woff2"))
+    for rel in woffs:
         path = DOCS / rel
         if path.is_file() and path.read_bytes()[:4] != b"wOF2":
             fail("fonts", f"docs/{rel} is not a woff2 font")
     preloads = re.findall(r"<link\b[^>]*\brel=\"preload\"[^>]*>", html_text)
     if not preloads:
-        fail("fonts", "the page preloads no font; preload the fonts of the header")
+        fail("fonts", "the page preloads no font; preload the fonts of the page")
     for tag in preloads:
         href = re.search(r'\bhref="([^"]*)"', tag)
         target = href.group(1) if href else ""
-        if not target.endswith(".woff2") or target not in FONT_FILES:
-            fail("fonts", f"the page preloads {target[:50]!r}, which is not a font of the site")
+        if not target.endswith(".woff2") or target not in woffs:
+            fail("fonts", f"the page preloads {target[:50]!r}, which is not a font of the house")
         if 'as="font"' not in tag or 'type="font/woff2"' not in tag or not re.search(r"\bcrossorigin\b", tag):
             fail("fonts", f"the preload of {target[:50]!r} needs as=\"font\", type=\"font/woff2\" and crossorigin")
 
@@ -538,77 +545,98 @@ def check_prose(paragraphs: list[str], where: str) -> None:
                 fail("voice", f"{where}: a sentence has more than {MAX_WORDS} words: {sentence[:40]}")
 
 
-def group_lists(source: str, pattern: str) -> list[tuple[str, list[str]]]:
-    """(title, repositories) for each group in a page or in llms.txt. pattern captures title and body."""
-    return [
-        (title, re.findall(rf"{GITHUB_URL}/{OWNER}/([\w.-]+)", body))
-        for title, body in re.findall(pattern, source, re.S)
-    ]
+def plate_html(full: str, line: str | None = None) -> re.Pattern[str]:
+    """The markup of one plate: the repository banner, the name, one line. A project with a site links
+    the banner to the repository and the name to the site; every other plate is one link to the repository."""
+    repo = full.split("/")[1]
+    url = re.escape(f"https://github.com/{full}")
+    img = (
+        rf'<img src="img/{re.escape(repo)}\.jpg" width="{PLATE_SIZE[0]}" height="{PLATE_SIZE[1]}" '
+        rf'loading="lazy" alt="">'
+    )
+    text = r'(?P<line>[^<]+)' if line is None else re.escape(line)
+    if full in SITE_LINKS:
+        site = re.escape(SITE_LINKS[full])
+        return re.compile(
+            rf'<li class="plate"><a class="pic" href="{url}" aria-label="{re.escape(repo)} repository">{img}</a><a class="nm" href="{site}">{re.escape(repo)}</a>'
+            rf'<span class="ds">{text}</span></li>'
+        )
+    return re.compile(
+        rf'<li class="plate"><a class="whole" href="{url}">{img}<span class="nm">{re.escape(repo)}</span>'
+        rf'<span class="ds">{text}</span></a></li>'
+    )
 
 
 def check_content(page: Page, html_text: str) -> str:
     text = " ".join(" ".join(page.text).split())
-    for needed in (TAGLINE, SUBTITLE, FOOTER):
-        if needed not in text:
-            fail("content", f'the page lacks "{needed}"')
-    if not re.search(
-        rf'<p class="tagline">(?:(?!</p>).)*</p>\s*<p class="subtitle">{re.escape(SUBTITLE)}</p>', html_text, re.S
-    ):
-        fail("content", "the subtitle line must follow the tagline")
+    visible = " ".join([text, *page.values, *page.hidden, *page.tags])
+    expected_bar = "\n".join(
+        f'<a href="{html.escape(u)}"' + (' aria-current="page"' if n == SELF else "") + f">{html.escape(n)}</a>"
+        for n, u in SITES
+    )
+    if f'<nav class="bar" aria-label="Sites">\n{expected_bar}\n</nav>' not in html_text:
+        fail("content", f"the top bar must link the three sites in order, with {SELF} marked as the current page")
+    if not re.search(r'<h1><img class="banner" src="img/banner\.jpg" width="1408" height="469" alt="[^"]+"></h1>', html_text):
+        fail("content", "the h1 must hold the banner, img/banner.jpg at 1408 by 469, with the name as alt text")
+    expected_duo = (
+        f'<div class="duo">\n<p class="line">{html.escape(LINE)}</p>\n<p class="blurb">{html.escape(BLURB)}</p>\n</div>'
+    )
+    if expected_duo not in html_text:
+        fail("content", "the org line and the paragraph on the name must sit side by side, word for word as allow.json has them")
+    if f"<footer class=\"wrap\">\n<p>{BAR_TEXT.replace(chr(0xB7), '&middot;')}</p>\n</footer>" not in html_text:
+        fail("content", f'the footer must read "{BAR_TEXT}"')
+    order = [html_text.find(m) for m in ('class="bar"', 'class="banner"', 'class="duo"', 'class="grid"', "<footer")]
+    if -1 in order or order != sorted(order):
+        fail("content", "the page order is: top bar, banner, line and name, projects, footer")
     hrefs = [link.get("href") or "" for link in page.links if link.get("tag") != "link"]
-    repo_links = [h for h in hrefs if h.startswith(f"https://github.com/{OWNER}/")]
-    expected = [f"https://github.com/{OWNER}/{repo}" for repo in PUBLIC_REPOS]
-    if sorted(repo_links) != sorted(expected):
+    repo_links = [h for h in hrefs if h.startswith("https://github.com/")]
+    plain_repos = [f"https://github.com/{full}" for full in repos_of()]
+    if sorted(repo_links) != sorted(plain_repos):
         fail("projects", "the project links are not exactly the public repositories")
-    for url in [*TAB_URLS, *SITE_LINKS.values()]:
+    for _, url in SITES:
         if hrefs.count(url) != 1:
-            fail("links", f"{url} must be linked once")
-    # A house is linked twice: in the tab row and in the Houses section.
-    for url in HOUSE_URLS:
-        if hrefs.count(url) != 2:
-            fail("links", f"{url} must be linked twice: tab row and Houses")
+            fail("links", f"{url} must be linked once, in the top bar")
+    for url in SITE_LINKS.values():
+        if hrefs.count(url) != 1:
+            fail("links", f"{url} must be linked once, on the name of its plate")
     if any(kind == "h3" for kind, _ in page.headings):
         fail("projects", "the page has headings below h2; each project list is a plain list")
-    found = group_lists(html_text, r'<h2 id="[\w-]+">([^<]*)</h2>\s*<ul class="projects">(.*?)</ul>')
-    if found != [(title, list(repos)) for title, repos in GROUPS]:
-        fail("projects", "the projects are not in the three groups, in order, under their headings")
     if [h for kind, h in page.headings if kind == "h2"] != section_titles():
-        fail("projects", "the h2 headings must be the group titles, then Papers and Lab log if any, then Houses")
-    shown_papers = re.findall(
-        r'<li><span class="status">([^<]*)</span><p>([^<]*)</p></li>',
-        "".join(re.findall(r'<h2 id="papers">Papers</h2>\s*<ul class="papers">(.*?)</ul>', html_text, re.S)),
+        fail("projects", "the h2 headings must be the group titles, in order")
+    sections = re.findall(
+        r'<section aria-labelledby="(g-[\w-]+)">\n<h2 class="lbl" id="(g-[\w-]+)">([^<]*)</h2>\n<ul class="grid">\n(.*?)\n</ul>\n</section>',
+        html_text,
+        re.S,
     )
-    if [(html.unescape(s), html.unescape(t)) for s, t in shown_papers] != list(PAPERS):
-        fail("papers", "the Papers list must be exactly the allowed papers, in order, with their status")
-    shown_log = re.findall(
-        r'<li><span class="status">([^<]*)</span><p>([^<]*)</p></li>',
-        "".join(re.findall(r'<h2 id="lab-log">Lab log</h2>\s*<ul class="papers">(.*?)</ul>', html_text, re.S)),
-    )
-    log_body = "".join(re.findall(r'<h2 id="lab-log">Lab log</h2>\s*<ul class="papers">(.*?)</ul>', html_text, re.S))
-    if log_body.count("<li") != len(LOG) or html_text.count('id="lab-log"') != (1 if LOG else 0):
-        fail("log", "the Lab log section must hold exactly the allowed entries")
-    if [(html.unescape(s), html.unescape(t)) for s, t in shown_log] != list(LOG):
-        fail("log", "the Lab log list must be exactly the allowed entries, in order, with their status")
-    if len(re.findall(r'<a class="site"', html_text)) != len(SITE_LINKS):
+    if len(sections) != len(GROUPS) or html_text.count("<section") != len(GROUPS):
+        fail("projects", "the projects are not in the groups of the public list")
+        return visible
+    lines: list[str] = []
+    for (label, ident, title, body), (want_title, fulls) in zip(sections, GROUPS, strict=True):
+        if html.unescape(title) != want_title or label != ident or ident != f"g-{slug(want_title)}":
+            fail("projects", f"the group {want_title} must carry its title and its id g-{slug(want_title)}")
+        plates = body.split("\n")
+        if len(plates) != len(fulls):
+            fail("projects", f"the group {want_title} must hold exactly its projects, in order")
+            continue
+        for full, plate in zip(fulls, plates, strict=True):
+            hit = plate_html(full).fullmatch(plate)
+            if not hit:
+                fail("projects", f"the plate of {full} is not the banner, the name and one line, with its links")
+            else:
+                lines.append(html.unescape(hit.group("line")))
+    if html_text.count('<a class="nm"') != len(SITE_LINKS):
         fail("projects", "the page has a site link that the allowed list does not name")
-    for repo, url in SITE_LINKS.items():
-        if not re.search(rf'<a href="https://github.com/{OWNER}/{repo}">{repo}</a><p>[^<]*<a class="site" href="{re.escape(url)}">site</a></p>', html_text):
-            fail("projects", f"{repo} needs a second link labelled site to {url}")
-    for title in section_titles():
-        if f'aria-labelledby="{slug(title)}">\n<img class="punch" src="rules/{slug(title)}.svg"' not in html_text:
-            fail("hero", f"the section {title} must open with its row of dots, rules/{slug(title)}.svg")
-    if not re.search(r'<footer class="section">\n<img class="punch" src="rules/[a-z0-9-]+\.svg"', html_text):
-        fail("hero", "the footer must open with a row of dots")
-    check_prose(page.paragraphs, "index.html")
-    return " ".join([text] + page.values + page.hidden + page.tags)
+    check_prose(page.paragraphs + lines, "index.html")
+    return visible
 
 
 def emitted(visible: str) -> Iterator[tuple[str, str]]:
-    """Every emitted file as (name, text). The page counts as what a reader or a crawler gets."""
+    """Every emitted text file as (name, text). The page counts as what a reader or a crawler gets."""
     yield "index.html", visible
     for path in sorted(DOCS.rglob("*")):
         name = path.relative_to(DOCS).as_posix()
-        if path.is_file() and name != "index.html" and path.suffix != ".woff2":
+        if path.is_file() and name != "index.html" and path.suffix not in (".woff2", ".jpg"):
             yield name, path.read_text(encoding="utf-8", errors="replace")
 
 
@@ -620,25 +648,31 @@ def decoded(source: str) -> str:
 
 
 def check_leaks(visible: str, deny: list[str]) -> None:
-    house_hosts = {u.split("//", 1)[1] for u in HOUSE_URLS}
     forwards = {f"{folder}/index.html": url.split("//", 1)[1] for folder, url in REDIRECTS.items()}
     for name, raw in emitted(visible):
-        if not raw.isascii():
+        # Files are plain ASCII. The one character beyond ASCII that a reader sees is the dot of the footer
+        # line, which the file spells as &middot;.
+        shown = raw.replace(BAR_TEXT, "") if name == "index.html" else raw
+        if not shown.isascii():
             fail("voice", f"docs/{name} has characters that are not plain ASCII")
-        # An svg or a page can spell a name with &#x..; references. Match the raw and the decoded text.
+        if name != "index.html" and not raw.isascii():
+            continue
         source = raw + "\n" + decoded(raw)
         for match in GITHUB.findall(source):
-            ok = match in house_hosts or match == forwards.get(name) or match in LICENCE_URLS.get(name, ()) or any(
-                match == f"github.com/{OWNER}/{repo}" for repo in PUBLIC_REPOS
+            ok = match == forwards.get(name) or match in LICENCE_URLS.get(name, ()) or any(
+                match == f"github.com/{full}" for full in repos_of()
             )
             if not ok:
                 fail("private", f"{match} is not in the public list ({name})")
         for repo in RS_NAME.findall(source):
-            if repo.lower() not in PUBLIC_REPOS:
+            if repo.lower() not in {full.split("/")[1].lower() for full in repos_of()}:
                 fail("private", f"{repo} looks like a repository that is not in the public list ({name})")
         for word in deny:
             if re.search(rf"(?<![\w]){re.escape(word)}(?![\w])", source, re.I):
                 fail("private", f"a private name appears in docs/{name} ({len(word)} letters)")
+    raw_page = (DOCS / "index.html").read_text(encoding="utf-8", errors="replace") if (DOCS / "index.html").is_file() else ""
+    if not raw_page.isascii():
+        fail("voice", "docs/index.html has characters that are not plain ASCII; spell the dot as &middot;")
     for path in DOCS.rglob("*"):
         for word in deny:
             if path.is_file() and re.search(re.escape(word), path.name, re.I):
@@ -647,60 +681,148 @@ def check_leaks(visible: str, deny: list[str]) -> None:
 
 def check_forbidden() -> None:
     for path in sorted(DOCS.rglob("*")):
-        if path.is_file() and path.suffix != ".woff2":
+        if path.is_file() and path.suffix not in (".woff2", ".jpg"):
             hit = FORBIDDEN.search(path.read_text(encoding="utf-8", errors="replace"))
             if hit:
                 fail("forbidden", f"docs/{path.relative_to(DOCS).as_posix()} contains {hit.group(0)!r}")
 
 
-def rule_declarations(css: str) -> Iterator[dict[str, str]]:
-    """The declarations of every rule block in css, by lower-case property. The last one wins."""
+def jpeg_size(data: bytes) -> tuple[int, int] | None:
+    """(width, height) of a JPEG, read from its first start-of-frame marker. None when it is not a JPEG."""
+    if data[:3] != b"\xff\xd8\xff":
+        return None
+    i = 2
+    while i + 9 < len(data):
+        if data[i] != 0xFF:
+            i += 1
+            continue
+        marker = data[i + 1]
+        if marker in (0xD8, 0x01) or 0xD0 <= marker <= 0xD7 or marker == 0xFF:
+            i += 1 if marker == 0xFF else 2
+            continue
+        length = int.from_bytes(data[i + 2 : i + 4], "big")
+        if marker in (0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF):
+            return int.from_bytes(data[i + 7 : i + 9], "big"), int.from_bytes(data[i + 5 : i + 7], "big")
+        i += 2 + length
+    return None
+
+
+def check_images() -> None:
+    """Each image is a real JPEG of the size that the page declares, and no larger than a plate needs."""
+    for path in sorted((DOCS / "img").glob("*")) if (DOCS / "img").is_dir() else []:
+        data = path.read_bytes()
+        size = jpeg_size(data)
+        want = BANNER_SIZE if path.name == "banner.jpg" else PLATE_SIZE
+        if size is None:
+            fail("images", f"docs/img/{path.name} is not a JPEG")
+        elif not data.endswith(b"\xff\xd9"):
+            fail("images", f"docs/img/{path.name} is cut short: it has no end-of-image marker")
+        elif size != want:
+            fail("images", f"docs/img/{path.name} is {size[0]} x {size[1]}; it must be {want[0]} x {want[1]}")
+        if len(data) > MAX_IMAGE_BYTES:
+            fail("images", f"docs/img/{path.name} is {len(data)} bytes; the limit is {MAX_IMAGE_BYTES}")
+
+
+def declarations(body: str) -> dict[str, str]:
+    found: dict[str, str] = {}
+    for declaration in body.split(";"):
+        prop, colon, value = declaration.partition(":")
+        if colon:
+            found[prop.strip().lower()] = re.sub(r"\s*!important\s*$", "", value.strip(), flags=re.I)
+    return found
+
+
+Rule = tuple[tuple[str, ...], str, dict[str, str]]
+
+
+def css_rules(css: str, conditions: tuple[str, ...] = ()) -> Iterator[Rule]:
+    """(media conditions, selector or at-rule, declarations) of every rule block in css, nested @media included.
+
+    A media condition is lower case with its spaces removed."""
     css = re.sub(r"/\*.*?\*/", " ", css, flags=re.S)
-    for match in re.finditer(r"[^{};]*\{([^{}]*)\}", css):
-        found: dict[str, str] = {}
-        for declaration in match.group(1).split(";"):
-            prop, colon, value = declaration.partition(":")
-            if colon:
-                found[prop.strip().lower()] = re.sub(r"\s*!important\s*$", "", value.strip(), flags=re.I)
-        yield found
+    i = 0
+    while True:
+        start = css.find("{", i)
+        if start < 0:
+            return
+        prelude = css[i:start].strip()
+        depth, k = 1, start + 1
+        while k < len(css) and depth:
+            depth += (css[k] == "{") - (css[k] == "}")
+            k += 1
+        body = css[start + 1 : k - 1]
+        if prelude.lower().startswith(("@media", "@supports")):
+            yield from css_rules(body, (*conditions, re.sub(r"\s+", "", prelude.lower())))
+        else:
+            yield conditions, re.sub(r"\s+", " ", prelude), declarations(body)
+        i = k
 
 
-def text_colour(value: str, prop: str, mode: dict[str, str]) -> str | None:
-    """The hex that a color or background value gives in one mode. None when it takes what is there.
+MOTION = re.compile(r"^(transition|animation|transform|scroll-behavior|will-change)")
+
+
+def check_behaviour(css: str) -> None:
+    """Hover effects only on hover-capable pointers; motion only when the reader has not asked for less."""
+    for conditions, selector, decls in css_rules(css):
+        if ":hover" in selector and not any("(hover:hover)" in c for c in conditions):
+            fail("hover", f"{selector[:40]} is a hover rule outside @media (hover: hover)")
+        for prop in decls:
+            if MOTION.match(prop) and not any("(prefers-reduced-motion:no-preference)" in c for c in conditions):
+                fail("motion", f"{selector[:40]} sets {prop} outside @media (prefers-reduced-motion: no-preference)")
+        if selector.startswith("@font-face") or ":root" in selector:
+            continue
+        if "outline" in decls and "none" in decls["outline"] and ":focus-visible" not in selector:
+            fail("focus", f"{selector[:40]} removes an outline")
+    clipped = {s for _, s, d in css_rules(css) if d.get("overflow") == "hidden"}
+    for _, selector, decls in css_rules(css):
+        if "scale" in decls.get("transform", ""):
+            for part in selector.split(","):
+                wrapper = part.strip().split(":hover")[0]
+                if wrapper not in clipped:
+                    fail("hover", f"{wrapper} scales an image on hover but is not clipped (overflow: hidden)")
+    focus = [d for _, s, d in css_rules(css) if s == "a:focus-visible"]
+    if not focus or "var(--accent)" not in focus[0].get("outline", ""):
+        fail("focus", "a:focus-visible must draw an outline in the accent colour")
+
+
+def text_colour(value: str, prop: str, tokens: dict[str, str]) -> str | None:
+    """The hex that a color or background value gives. None when it takes what is there.
 
     Only a palette token, black, white or transparent sets a colour. Anything else fails."""
     v = value.lower()
     token = re.fullmatch(r"var\(\s*--([a-z-]+)\s*\)", v)
-    if token and token.group(1) in mode:
-        return mode[token.group(1)]
+    if token and token.group(1) in tokens:
+        return tokens[token.group(1)]
     if v in GREY_NAMES:
         return GREY_NAMES[v]
     if v == "transparent":
-        return mode["bg"]
+        return tokens["bg"]
     if v in ("inherit", "currentcolor"):
         return None
     fail("contrast", f"style.css sets {prop}: {value[:30]!r}; use a palette token (var(--name)), black, white or transparent")
     return None
 
 
-def check_text_colours(css: str, light: dict[str, str], night: dict[str, str]) -> None:
+def check_text_colours(css: str, tokens: dict[str, str]) -> None:
     """Measure the colours that text uses: each color and background in style.css, against its partner.
 
-    A rule with only color is measured on --bg. A rule with only a background is measured with --fg."""
-    for decls in rule_declarations(css):
+    A rule with only color is measured on --bg. A rule with only a background is measured with --fg.
+    A rule that draws an empty box (content: "") sets no text and is not measured."""
+    for _, _, decls in css_rules(css):
+        if decls.get("content") in ('""', "''"):
+            continue
         fg = decls.get("color")
         bgs: list[str | None] = [decls[k] for k in ("background-color", "background") if k in decls]
         if fg is None and not bgs:
             continue
-        for mode in (light, night):
-            fg_hex = text_colour(fg, "color", mode) if fg is not None else None
-            for bg in bgs or [None]:
-                bg_hex = text_colour(bg, "background", mode) if bg is not None else None
-                top, ground = fg_hex or mode["fg"], bg_hex or mode["bg"]
-                need = 3.0 if top == mode["red"] else 4.5
-                ratio = contrast(top, ground)
-                if ratio < need:
-                    fail("contrast", f"style.css has text {top} on {ground} at {ratio:.2f}, below {need}")
+        fg_hex = text_colour(fg, "color", tokens) if fg is not None else None
+        for bg in bgs or [None]:
+            bg_hex = text_colour(bg, "background", tokens) if bg is not None else None
+            top, ground = fg_hex or tokens["fg"], bg_hex or tokens["bg"]
+            need = 3.0 if top == tokens["accent"] else 4.5
+            ratio = contrast(top, ground)
+            if ratio < need:
+                fail("contrast", f"style.css has text {top} on {ground} at {ratio:.2f}, below {need}")
 
 
 def check_css() -> None:
@@ -708,48 +830,46 @@ def check_css() -> None:
     if not css:
         return
     root = re.search(r":root\{([^}]*)\}", css)
-    dark = re.search(r"prefers-color-scheme:\s*dark\)\{:root\{([^}]*)\}", css)
-    if not root or not dark:
-        fail("dark", "style.css needs :root colours for light and for prefers-color-scheme: dark")
+    if not root:
+        fail("dark", "style.css needs the :root block of the house colours, fonts and sizes")
         return
-
-    def vars_of(block: str) -> dict[str, str]:
-        found: dict[str, str] = {}
-        for key, value in re.findall(r"--([a-z-]+):\s*(#[0-9a-fA-F]+)\b", block):
-            if len(value) in (4, 7):
-                found[key] = value
-            else:
-                fail("colour", f"--{key} is {value}; use #rgb or #rrggbb with no alpha")
-        return found
-
-    light, night = vars_of(root.group(1)), {**vars_of(root.group(1)), **vars_of(dark.group(1))}
-    for mode, v in (("light", light), ("dark", night)):
-        for key in ("bg", "fg", "muted", "red"):
-            if key not in v:
-                fail("contrast", f"{mode} has no --{key}")
-                return
-        for fg, need in (("fg", 4.5), ("muted", 4.5), ("red", 3.0)):
-            ratio = contrast(v[fg], v["bg"])
-            if ratio < need:
-                fail("contrast", f"{mode} --{fg} on --bg is {ratio:.2f}, below {need}")
-    if night["bg"].lower() != "#000000" or night["fg"].lower() != "#ffffff":
-        fail("dark", "dark mode needs a black ground and white type")
-    if light["red"].lower() != night["red"].lower():
-        fail("dark", "the red must be the same in light and dark")
+    found = dict(re.findall(r"--([a-z-]+):\s*([^;]*);", root.group(1)))
+    tokens = {k: found.get(k, "").lower() for k in ("bg", "fg", "muted", "accent", "edge")}
+    for key, theme_key in (("bg", "ground"), ("fg", "text"), ("muted", "muted"), ("accent", "accent")):
+        if tokens[key] != THEME.get(theme_key):
+            fail("palette", f"--{key} is {tokens[key] or 'missing'}; allow.json gives {THEME.get(theme_key)}")
+    if not re.fullmatch(r"#[0-9a-f]{6}", tokens["edge"]):
+        fail("palette", "--edge must be #rrggbb")
+        return
+    family = THEME.get("font", "")
+    if not found.get("font", "").startswith(f'"{family}"') or not found.get("mono", "").startswith(f'"{WEFT}"'):
+        fail("fonts", f"--font must start with {family!r} and --mono with {WEFT!r}")
+    for key, need in (("fg", 4.5), ("muted", 4.5), ("accent", 3.0)):
+        ratio = contrast(tokens[key], tokens["bg"])
+        if ratio < need:
+            fail("contrast", f"--{key} on --bg is {ratio:.2f}, below {need}")
     check_refs(css, "style.css", "css")
     check_colour_names(css, "style.css")
-    check_text_colours(css, light, night)
-    accents = split_accent(colours_of(css, "style.css"))
-    if accents != {light["red"].lower()}:
-        fail("accent", f"style.css needs exactly one accent colour, the red; found {sorted(accents)}")
+    if "prefers-color-scheme" in css or not re.search(r"color-scheme:\s*dark\b", css):
+        fail("dark", "the page is dark only: style.css sets color-scheme: dark and has no light scheme")
+    # The one gradient is the mask of the banner. It is cut out before the colour check, which refuses any other.
+    flat = re.sub(r"\s+", " ", css)
+    masks = flat.count(MASK)
+    if masks != 1:
+        fail("colour", f"style.css must hold the banner mask exactly once: {MASK}")
+    colours = colours_of(flat.replace(MASK, ""), "style.css")
+    if colours - set(tokens.values()) - {"#000000"}:
+        fail("accent", f"style.css has colours outside the palette: {sorted(colours - set(tokens.values()) - {'#000000'})}")
+    if "var(--accent)" not in css:
+        fail("accent", "style.css never uses the accent colour")
+    check_text_colours(css, tokens)
+    check_behaviour(css)
+    if f"grid-template-columns: {GRID}" not in flat:
+        fail("responsive", f"the plate grid must be grid-template-columns: {GRID}")
+    if not re.search(r"--max:\s*1200px", css):
+        fail("responsive", "the content width must be --max: 1200px")
     if re.search(r"\bnowrap\b|(?<![-\w])width:\s*\d{3,}px", css):
         fail("responsive", "style.css forces a width that can scroll")
-
-
-def rects_of(d: str) -> Iterator[tuple[int, int, int, int]]:
-    for m in re.finditer(r"M(-?\d+) (-?\d+)h(\d+)v(\d+)h-\d+z", d):
-        x, y, w, h = (int(g) for g in m.groups())
-        yield x, y, w, h
 
 
 def refuse_name(name: str, where: str) -> None:
@@ -841,86 +961,19 @@ def check_svg_safety(tree: ET.Element, where: str) -> None:
             check_refs(value, where, "svg")
 
 
-Dot = tuple[float, float, int]
-BIG_DOT = re.compile(r"M(-?[\d.]+) (-?[\d.]+)a([\d.]+) [\d.]+ 0 1 0 [\d.]+ 0")
-SMALL_DOT = re.compile(r"M(-?[\d.]+) (-?[\d.]+)h([\d.]+)v")
-
-
-def dots_of(tree: ET.Element, classes: tuple[str, ...]) -> list[Dot]:
-    """Centre and bit of every dot in the paths of these classes. A big dot is a 1, a small one a 0."""
-    found: list[Dot] = []
-    for el in tree.iter():
-        if el.tag.rsplit("}", 1)[-1] == "path" and el.get("class") in classes:
-            d = el.get("d", "")
-            found += [(float(x) + float(r), float(y), 1) for x, y, r in BIG_DOT.findall(d)]
-            found += [(float(x) + float(s) / 2, float(y) + float(s) / 2, 0) for x, y, s in SMALL_DOT.findall(d)]
-    return found
-
-
-def decode_rule(tree: ET.Element) -> str | None:
-    """The text a row of dots encodes: 7 slots per character, one empty slot between characters."""
-    dots = dots_of(tree, ("d",))
-    slots = {int(x // RULE_PITCH): bit for x, _, bit in dots}
-    if not slots or len(slots) != len(dots):
-        return None
-    count = (max(slots) + 2) // RULE_PITCH
-    expected = {RULE_PITCH * i + j for i in range(count) for j in range(CODE_BITS)}
-    if set(slots) != expected:
-        return None
-    codes = [sum(slots[RULE_PITCH * i + j] << (CODE_BITS - 1 - j) for j in range(CODE_BITS)) for i in range(count)]
-    return "".join(chr(code) for code in codes) if all(32 <= code < 127 for code in codes) else None
-
-
-def check_svgs(name: str | None) -> None:
-    hero_rel = f"heroes/{name}.svg" if name else None
-    rules = {f"rules/{slug(title)}.svg": title for title in rule_titles(name)}
-    trees: dict[str, ET.Element] = {}
-    for rel in ["mark.svg", *([hero_rel] if hero_rel else []), *rules]:
-        text = read(rel)
-        if not text:
-            continue
-        try:
-            tree = ET.fromstring(text)
-        except ET.ParseError as exc:
-            fail("parse", f"{rel} is not valid XML: {exc}")
-            continue
-        trees[rel] = tree
-        check_svg_safety(tree, rel)
-        accents = split_accent(svg_colours(tree, rel))
-        if rel in rules:
-            if accents:
-                fail("accent", f"{rel} is quiet and must not use an accent; found {sorted(accents)}")
-            if decode_rule(tree) != rules[rel]:
-                fail("rules", f"{rel} does not encode {rules[rel]!r} in 7-bit ASCII")
-            continue
-        if accents != {"#e5251c"}:
-            fail("accent", f"{rel} needs exactly one accent colour; found {sorted(accents)}")
-    hero_tree = trees.get(hero_rel) if hero_rel else None
-    if hero_tree is None:
+def check_mark() -> None:
+    """The favicon, mark.svg: a valid, script-free svg whose only accent is the red of the mark."""
+    text = read("mark.svg")
+    if not text:
         return
-    tree = hero_tree
-    if tree.get("viewBox") != f"0 0 {FRAME[0]} {FRAME[1]}":
-        fail("hero", f"the hero viewBox is not 0 0 {FRAME[0]} {FRAME[1]}")
-    ns = "{http://www.w3.org/2000/svg}"
-    third = FRAME[0] / 3
-    reds = [e for e in tree.iter(f"{ns}path") if e.get("class") == "r"]
-    if len(reds) != 1 or len(list(tree.iter(f"{ns}g"))) != 1:
-        fail("hero", "the hero needs exactly one red cell")
-    least = FRAME[0]
-    for path in tree.iter(f"{ns}path"):
-        if path.get("fill", "").startswith("url(#"):
-            for x, _, _, _ in rects_of(path.get("d", "")):
-                least = min(least, x)
-    for g in tree.iter(f"{ns}g"):
-        m = re.fullmatch(r"translate\((\d+) (\d+)\)", g.get("transform", ""))
-        if not m:
-            fail("hero", "the red group has an unexpected transform")
-            continue
-        for path in g.iter(f"{ns}path"):
-            for x, _, _, _ in rects_of(path.get("d", "")):
-                least = min(least, int(m.group(1)) + x)
-    if least < third:
-        fail("hero", f"the weave starts at x={least}, inside the left third (x<{third:.0f})")
+    try:
+        tree = ET.fromstring(text)  # noqa: S314 -- mark.svg is written by this repository's own generator
+    except ET.ParseError as exc:
+        fail("parse", f"mark.svg is not valid XML: {exc}")
+        return
+    check_svg_safety(tree, "mark.svg")
+    if split_accent(svg_colours(tree, "mark.svg")) != {RED}:
+        fail("accent", "mark.svg needs exactly one accent colour, the red of the mark")
 
 
 def check_llms(name: str | None) -> None:
@@ -928,26 +981,21 @@ def check_llms(name: str | None) -> None:
     if not text:
         return
     links = re.findall(r"\]\((https://[^)]+)\)", text)
-    expected = [f"https://github.com/{OWNER}/{r}" for r in PUBLIC_REPOS] + list(HOUSE_URLS) + list(SITE_LINKS.values())
+    expected = [f"https://github.com/{full}" for full in repos_of()] + [u for _, u in SITES] + list(SITE_LINKS.values())
     if sorted(links) != sorted(expected):
-        fail("llms", "llms.txt must list exactly the public repositories, the site links and the houses")
+        fail("llms", "llms.txt must list exactly the public repositories, the project sites and the three sites")
     shown = site_title(name)
-    if shown and not text.startswith(f"# {shown}\n\n> {TAGLINE}\n\n{SUBTITLE}\n\n## "):
-        fail("llms", "llms.txt must start with the name, the line and the subtitle line")
-    if not text.endswith(f"\n\n{FOOTER}\n"):
-        fail("llms", "llms.txt must end with the footer line")
-    found = group_lists(text, r"## ([^\n]+)\n\n((?:- [^\n]*\n?)+)")
-    listed = "".join(
-        f"## {title}\n\n" + "\n".join(f"- {t} ({s})" for s, t in entries) + "\n\n"
-        for title, entries in (("Papers", PAPERS), ("Lab log", LOG))
-        if entries
-    )
-    if text.count("## Lab log") != (1 if LOG else 0):
-        fail("llms", "llms.txt must have exactly one Lab log section when there are lab log entries, and none otherwise")
-    if listed and listed + "## Houses" not in text:
-        fail("llms", "llms.txt must list exactly the allowed papers and lab log entries before Houses")
-    if [(t, r) for t, r in found if t not in ("Houses", "Papers", "Lab log")] != [(title, list(repos)) for title, repos in GROUPS]:
-        fail("llms", "llms.txt must follow the three groups, in order")
+    if shown and not text.startswith(f"# {shown}\n\n> {LINE}\n\n{BLURB}\n\n## "):
+        fail("llms", "llms.txt must start with the name, the line and the paragraph on the name")
+    sites = "".join(f"- [{n}]({u})\n" for n, u in SITES)
+    if not text.endswith(f"## Sites\n\n{sites}"):
+        fail("llms", "llms.txt must end with the Sites section: the three sites")
+    found = [
+        (title, re.findall(rf"{GITHUB_URL}/([\w.-]+/[\w.-]+)", body))
+        for title, body in re.findall(r"## ([^\n]+)\n\n((?:- [^\n]*\n?)+)", text, re.S)
+    ]
+    if [(t, r) for t, r in found if t != "Sites"] != [(title, list(fulls)) for title, fulls in GROUPS]:
+        fail("llms", "llms.txt must follow the groups of the public list, in order")
     lines = (re.sub(r"^[#>-]+\s*", "", line) for line in text.splitlines())
     check_prose([re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", line) for line in lines], "llms.txt")
 
@@ -983,7 +1031,7 @@ def load_deny(path: str | None) -> list[str]:
 def run_checks(deny: list[str]) -> list[str]:
     del failures[:]
     name = site_name()
-    check_files(name)
+    check_files()
     check_redirects()
     html_text = read("index.html")
     if html_text:
@@ -995,8 +1043,9 @@ def run_checks(deny: list[str]) -> list[str]:
         check_leaks(visible, deny)
         check_fonts(html_text)
     check_forbidden()
+    check_images()
     check_css()
-    check_svgs(name)
+    check_mark()
     check_llms(name)
     return list(failures)
 
@@ -1009,7 +1058,7 @@ def edit(docs: Path, name: str, old: str, new: str) -> None:
     path = docs / name
     text = path.read_text(encoding="utf-8")
     if old not in text:
-        raise AssertionError(f"self-test is stale: {old!r} is not in docs/{name}")
+        raise AssertionError(f"self-test is stale: {old!r} is not in docs/{name}")  # noqa: TRY003
     path.write_text(text.replace(old, new, 1), encoding="utf-8")
 
 
@@ -1019,69 +1068,44 @@ def edit_all(docs: Path, name: str, *pairs: tuple[str, str]) -> None:
         edit(docs, name, old, new)
 
 
-def flip_first_dot(docs: Path, rel: str) -> None:
-    """Turn the first big dot of an svg into a small one: one bit flipped."""
-    path = docs / rel
-    text = path.read_text(encoding="utf-8")
-    hit = BIG_DOT.search(text)
-    if hit is None:
-        raise AssertionError(f"self-test is stale: no big dot in docs/{rel}")
-    x, y, r = float(hit.group(1)), float(hit.group(2)), float(hit.group(3))
-    end = text.index("Z", hit.end()) + 1
-    square = f"M{x + r - 1:.2f} {y - 1:.2f}h2v2h-2Z"
-    path.write_text(text[: hit.start()] + square + text[end:], encoding="utf-8")
-
-
-def move_weave(docs: Path, hero: str) -> None:
-    path = docs / hero
-    text = path.read_text(encoding="utf-8")
-    moved = re.sub(r'(fill="url\(#p\d\)" d="M)\d+', r"\g<1>100", text, count=1)
-    if moved == text:
-        raise AssertionError("self-test is stale: no weave mask found in the hero")
-    path.write_text(moved, encoding="utf-8")
-
-
 def site_copy(root: Path, changes: dict[str, object]) -> subprocess.CompletedProcess[bytes]:
     """Build a copy of the generator in root, with these keys of site.json changed."""
     (root / "src").mkdir(parents=True)
     for rel in ("build.py", "card.py", "src/style.css"):
         shutil.copy(ROOT / rel, root / rel)
     shutil.copytree(ROOT / "fonts", root / "fonts")
+    shutil.copytree(ROOT / "img", root / "img")
     data = json.loads((ROOT / "site.json").read_text(encoding="utf-8"))
+    old = data["name"]
     data.update(changes)
+    new = changes.get("name")
+    if isinstance(new, str) and FILE_NAME.fullmatch(new) and ".." not in new:
+        # A renamed site keeps the banner of the site it was copied from, under the new name.
+        shutil.copy(ROOT / "img" / "org" / f"{old}.jpg", root / "img" / "org" / f"{new}.jpg")
+        if "title" not in changes:
+            data.pop("title", None)
     (root / "site.json").write_text(json.dumps(data), encoding="utf-8")
     env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
     return subprocess.run([sys.executable, str(root / "build.py")], capture_output=True, env=env)
 
 
-def tagline_keeps_its_tail() -> bool:
-    """True when a tagline whose last part has no end mark is still shown in full."""
-    name = site_name()
-    if name is None:
-        return False
-    with tempfile.TemporaryDirectory() as tmp:
-        root = Path(tmp) / "site"
-        done = site_copy(root, {"tagline": "First part. Last part without a stop"})
-        page = (root / "docs" / "index.html").read_text(encoding="utf-8") if done.returncode == 0 else ""
-        return "<span>First part.</span>" in page and "<span>Last part without a stop</span>" in page
-
-
 def build_rejects(changes: dict[str, object]) -> bool:
-    """True when build.py exits 2 on a site.json with these changes and writes no svg outside docs/."""
+    """True when build.py exits 2 on a site.json with these changes and writes no docs/ outside the copy."""
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp) / "site"
         done = site_copy(root, changes)
-        outside = [p.name for p in Path(tmp).rglob("*.svg") if root / "docs" not in p.parents]
+        outside = [p.name for p in Path(tmp).rglob("*.html") if root / "docs" not in p.parents]
         return done.returncode == 2 and not outside
 
 
-def build_needs_fonts() -> bool:
-    """True when build.py exits 2 without fonts/ and writes no docs/."""
+def build_needs(rel: str) -> bool:
+    """True when build.py exits 2 without this file of the generator and writes no docs/."""
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp) / "site"
         site_copy(root, {})
-        shutil.rmtree(root / "fonts")
         shutil.rmtree(root / "docs")
+        target = root / rel
+        target.unlink()
         env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
         done = subprocess.run([sys.executable, str(root / "build.py")], capture_output=True, env=env)
         return done.returncode == 2 and not (root / "docs").exists()
@@ -1114,26 +1138,29 @@ def cli_fails(args: list[str], prefix: str) -> bool:
 
 
 def site_links_hold() -> list[str]:
-    """Build a site with one project site link and run the site-link checks on it: it passes, and each
-    way of breaking the link fails. No real project needs a site link for this."""
+    """Build a site with one more project site link and run the checks on it: it passes, and each way
+    of breaking the link fails. The checks read the link from the public list, so the list changes too."""
     global DOCS, SITE_LINKS
     real_docs, real_links = DOCS, SITE_LINKS
-    repo, url = "minuit2-rs", "https://machine-made.github.io/minuit2-rs/"
+    full = next(f for f in repos_of() if f not in real_links)
+    repo, url = full.split("/")[1], "https://machine-made.github.io/zz-site/"
     problems: list[str] = []
     data = json.loads((ROOT / "site.json").read_text(encoding="utf-8"))
-    groups = data["groups"]
-    next(p for g in groups for p in g["projects"] if p["repo"] == repo)["site"] = url
+    next(p for g in data["groups"] for p in g["projects"] if p["repo"] == repo)["site"] = url
+    link = f'<a class="nm" href="{url}">{repo}</a>'
     breaks: list[tuple[str, Callable[[Path], object]]] = [
-        ("site link missing", lambda d: edit(d, "index.html", f' <a class="site" href="{url}">site</a>', "")),
-        ("site link on another host", lambda d: edit(d, "index.html", url, "https://example.net/minuit2-rs/")),
+        ("site link missing", lambda d: edit(d, "index.html", link, f'<span class="nm">{repo}</span>')),
+        ("site link on another host", lambda d: edit(d, "index.html", url, "https://example.net/zz-site/")),
         ("site link to another path", lambda d: edit(d, "index.html", url, "https://machine-made.github.io/other/")),
-        ("second site link", lambda d: edit(d, "index.html", "</ul>", f'<li><a class="site" href="{url}">x</a></li></ul>')),
+        ("second site link", lambda d: edit(d, "index.html", "</ul>", f'<li><a class="nm" href="{url}">x</a></li></ul>')),
+        ("site link on the banner", lambda d: edit(d, "index.html", f'<a class="pic" href="https://github.com/{full}" aria-label=', f'<a class="pic" href="{url}" aria-label=')),
+        ("linked banner without an accessible name", lambda d: edit(d, "index.html", f' aria-label="{repo} repository"', "")),
     ]
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp) / "site"
-        if site_copy(root, {"groups": groups}).returncode != 0:
+        if site_copy(root, {"groups": data["groups"]}).returncode != 0:
             return ["the site-link fixture does not build"]
-        SITE_LINKS = {repo: url}
+        SITE_LINKS = {**real_links, full: url}
         try:
             for title, mutate in [("clean fixture", lambda d: None), *breaks]:
                 DOCS = Path(tmp) / "case" / "docs"
@@ -1159,22 +1186,35 @@ def self_test() -> None:
     if not name:
         print("\n".join(failures))
         sys.exit(1)
-    hero = f"heroes/{name}.svg"
-    alt = f'alt="Weave pattern generated from the name {name}"'
+    # Plates without a site link of their own: the cases below break their markup.
+    plain = [f.split("/")[1] for f in repos_of() if f not in SITE_LINKS]
+    first = plain[0]
+    second = plain[1] if len(plain) > 1 else first
+    nav_other = next(u for n, u in SITES if n != SELF)
+    other_name = next(n for n, _ in SITES if n != SELF)
+    css_first = f":root{{--bg:{THEME['ground']};"
+    font_stem = FONT_SPECS[THEME["font"]][0]
     cases: list[Case] = [
         ("private name in style.css", "private", ["zzprivate"], lambda d: edit(d, "style.css", "box-sizing", "/* zzprivate */ box-sizing")),
-        ("private name in the hero svg", "private", ["zzprivate"], lambda d: edit(d, hero, "<title>", "<title>zzprivate ")),
+        ("private name in the mark svg", "private", ["zzprivate"], lambda d: edit(d, "mark.svg", "<title>", "<title>zzprivate ")),
         ("private name in an html comment", "private", ["zzprivate"], lambda d: edit(d, "index.html", "<body>", "<body><!-- zzprivate -->")),
-        ("private link", "links", [], lambda d: edit(d, "index.html", f"{OWNER}/bun-do", f"{OWNER}/zzprivate")),
-        ("private rs name in llms.txt", "private", [], lambda d: edit(d, "llms.txt", "## Houses", "zz-rs\n\n## Houses")),
-        ("long project line", "voice", [], lambda d: edit(d, "index.html", "Homebrew casks for", LONG + " Homebrew casks for")),
-        ("long houses line", "voice", [], lambda d: edit(d, "index.html", "(deterministic quant engines)", "(" + LONG[:-1] + ")")),
-        ("long line in llms.txt", "voice", [], lambda d: edit(d, "llms.txt", "Homebrew casks for", LONG + " Homebrew casks for")),
-        ("alpha hex in a variable", "colour", [], lambda d: edit(d, "style.css", "--muted:#595959", "--muted:#59595980")),
+        ("private link", "links", [], lambda d: edit(d, "index.html", f"/{first}\"", "/zzprivate\"")),
+        ("private rs name in llms.txt", "private", [], lambda d: edit(d, "llms.txt", "## Sites", "zz-rs\n\n## Sites")),
+        ("long project line", "voice", [], lambda d: edit(d, "index.html", '<span class="ds">', f'<span class="ds">{LONG} ')),
+        ("long org line", "voice", [], lambda d: edit(d, "llms.txt", f"> {LINE}", f"> {LONG} {LINE}")),
+        ("long line in llms.txt", "voice", [], lambda d: edit(d, "llms.txt", "## Sites", f"{LONG}\n\n## Sites")),
+        ("alpha hex in a variable", "colour", [], lambda d: edit(d, "style.css", f"--muted:{THEME['muted']}", f"--muted:{THEME['muted']}80")),
         ("short alpha hex in a rule", "colour", [], lambda d: edit(d, "style.css", "box-sizing", "color:#fff8;box-sizing")),
-        ("second accent", "accent", [], lambda d: edit(d, "style.css", "--rule:#d9d9d9", "--rule:#0000ff")),
+        ("second accent", "accent", [], lambda d: edit(d, "style.css", "box-sizing", "color:#0000ff;box-sizing")),
+        ("a hex grey outside the palette", "accent", [], lambda d: edit(d, "style.css", "box-sizing", "color:#777777;box-sizing")),
+        ("accent changed in style.css", "palette", [], lambda d: edit(d, "style.css", f"--accent:{THEME['accent']}", "--accent:#123456")),
+        ("ground changed in style.css", "palette", [], lambda d: edit(d, "style.css", css_first, ":root{--bg:#222222;")),
+        ("light scheme comes back", "dark", [], lambda d: edit(d, "style.css", "box-sizing", "box-sizing:border-box}@media (prefers-color-scheme: light){a{margin:0")),
+        ("color-scheme meta is light dark", "dark", [], lambda d: edit(d, "index.html", 'content="dark"', 'content="light dark"')),
+        ("theme-color differs from the ground", "dark", [], lambda d: edit(d, "index.html", f'name="theme-color" content="{THEME["ground"]}"', 'name="theme-color" content="#ffffff"')),
         ("link leaves docs/", "links", [], lambda d: edit(d, "index.html", 'href="style.css"', 'href="../README.md"')),
-        ("image leaves docs/", "links", [], lambda d: edit(d, "index.html", 'src="mark.svg"', 'src="../README.md"')),
+        ("image leaves docs/", "links", [], lambda d: edit(d, "index.html", 'src="img/banner.jpg"', 'src="../README.md"')),
+        ("icon leaves docs/", "links", [], lambda d: edit(d, "index.html", 'href="mark.svg"', 'href="../README.md"')),
         ("absolute local link", "links", [], lambda d: edit(d, "index.html", 'href="style.css"', 'href="/etc/hostname"')),
         ("protocol-relative link", "links", [], lambda d: edit(d, "index.html", 'href="style.css"', 'href="//example.com/x.css"')),
         ("Google Fonts stylesheet", "links", [], lambda d: edit(d, "index.html", STYLE_LINK, '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Other">' + STYLE_LINK)),
@@ -1183,127 +1223,163 @@ def self_test() -> None:
         ("preload of a remote font", "links", [], lambda d: edit(d, "index.html", 'href="fonts/mm-weft.woff2"', 'href="https://fonts.gstatic.com/x.woff2"')),
         ("preload of a file that is not a font", "fonts", [], lambda d: edit(d, "index.html", 'href="fonts/mm-weft.woff2"', 'href="mark.svg"')),
         ("preload without crossorigin", "fonts", [], lambda d: edit(d, "index.html", 'type="font/woff2" crossorigin>', 'type="font/woff2">')),
-        ("no preload", "fonts", [], lambda d: edit_all(d, "index.html", *[(f'<link rel="preload" href="fonts/{f}.woff2" as="font" type="font/woff2" crossorigin>\n', "") for f in ("mm-weft", "mm-sans")])),
+        ("no preload", "fonts", [], lambda d: edit_all(d, "index.html", *[(f'<link rel="preload" href="fonts/{f}.woff2" as="font" type="font/woff2" crossorigin>\n', "") for f in {"mm-weft", font_stem}])),
         ("css font face from a font host", "links", [], lambda d: edit(d, "style.css", "url(fonts/mm-weft.woff2)", "url(https://fonts.gstatic.com/s/other/v1/x.woff2)")),
         ("css imports Google Fonts", "links", [], lambda d: edit(d, "style.css", ":root{", '@import url("https://fonts.googleapis.com/css2?family=Other");:root{')),
-        ("css font face from a local file that is not the font", "fonts", [], lambda d: edit(d, "style.css", "url(fonts/mm-weft.woff2)", "url(fonts/mm-sans.woff2)")),
-        ("css font face for another family", "fonts", [], lambda d: edit(d, "style.css", 'font-family: "machine-made Sans";', 'font-family: "Other";')),
-        ("css font face without swap", "fonts", [], lambda d: edit(d, "style.css", "font-display: swap;", "font-display: block;")),
-        ("font file is not a woff2", "fonts", [], lambda d: (d / "fonts" / "mm-sans.woff2").write_bytes(b"<svg/>")),
+        ("css font face from a local file that is not the font", "fonts", [], lambda d: edit(d, "style.css", "url(fonts/mm-weft.woff2)", "url(fonts/mark.woff2)")),
+        ("css font face for another family", "fonts", [], lambda d: edit(d, "style.css", '@font-face{font-family:"machine-made Weft"', '@font-face{font-family:"Other"')),
+        ("css font face without swap", "fonts", [], lambda d: edit(d, "style.css", "font-display:swap", "font-display:block")),
+        ("css font face with another weight", "fonts", [], lambda d: edit(d, "style.css", "font-weight:100 900", "font-weight:400")),
+        ("font file is not a woff2", "fonts", [], lambda d: (d / "fonts" / "mm-weft.woff2").write_bytes(b"<svg/>")),
         ("font file missing", "files", [], lambda d: (d / "fonts" / "mm-weft.woff2").unlink()),
-        ("font licence missing", "files", [], lambda d: (d / "fonts" / "mm-sans-OFL.txt").unlink()),
+        ("font licence missing", "files", [], lambda d: (d / "fonts" / "mm-weft-OFL.txt").unlink()),
         ("extra font file", "files", [], lambda d: (d / "fonts" / "other.woff2").write_bytes(b"wOF2")),
+        ("a font of another house", "files", [], lambda d: (d / "fonts" / ("eb-garamond-400.woff2" if font_stem == "lato-400" else "lato-400.woff2")).write_bytes(b"wOF2")),
         ("private repo in a font licence", "private", [], lambda d: edit(d, "fonts/mm-weft-OFL.txt", "SIL OPEN FONT", "github.com/machine-made/zzprivate SIL OPEN FONT")),
         ("upstream link outside its licence", "private", [], lambda d: edit(d, "fonts/mm-weft-OFL.txt", "SIL OPEN FONT", "github.com/tokotype/PlusJakartaSans SIL OPEN FONT")),
-        ("money amount in a font licence", "forbidden", [], lambda d: edit(d, "fonts/mm-sans-OFL.txt", "SIL OPEN FONT", "$5 SIL OPEN FONT")),
+        ("money amount in a font licence", "forbidden", [], lambda d: edit(d, "fonts/mm-weft-OFL.txt", "SIL OPEN FONT", "$5 SIL OPEN FONT")),
         *[
             (f"{tag} tag", "no-js", [], lambda d, tag=tag: edit(d, "index.html", "<body>", f'<body><{tag} src="https://example.net/x"></{tag}>'))
             for tag in ("audio", "video", "source", "track", "iframe", "object", "embed")
         ],
         ("script tag", "no-js", [], lambda d: edit(d, "index.html", "</body>", "<script>1</script></body>")),
-        ("image without alt", "a11y", [], lambda d: edit(d, "index.html", alt, 'alt=" "')),
-        ("money amount", "forbidden", [], lambda d: edit(d, "llms.txt", "## Houses", "$5\n\n## Houses")),
+        ("banner without alt", "a11y", [], lambda d: edit(d, "index.html", 'height="469" alt="', 'height="469" alt=" " data-x="')),
+        ("plate image without alt attribute", "a11y", [], lambda d: edit(d, "index.html", f'<img src="img/{first}.jpg" width="704" height="235" loading="lazy" alt="">', f'<img src="img/{first}.jpg" width="704" height="235" loading="lazy">')),
+        ("plate image has alt text that repeats the name", "projects", [], lambda d: edit(d, "index.html", f'<img src="img/{first}.jpg" width="704" height="235" loading="lazy" alt="">', f'<img src="img/{first}.jpg" width="704" height="235" loading="lazy" alt="{first}">')),
+        ("plate image without lazy loading", "projects", [], lambda d: edit(d, "index.html", f'<img src="img/{first}.jpg" width="704" height="235" loading="lazy" alt="">', f'<img src="img/{first}.jpg" width="704" height="235" alt="">')),
+        ("plate image without size", "responsive", [], lambda d: edit(d, "index.html", f'<img src="img/{first}.jpg" width="704" height="235"', f'<img src="img/{first}.jpg"')),
+        ("plate image missing", "files", [], lambda d: (d / "img" / f"{first}.jpg").unlink()),
+        ("extra image", "files", [], lambda d: (d / "img" / "extra.jpg").write_bytes(b"\xff\xd8\xff")),
+        ("banner is not a JPEG", "images", [], lambda d: (d / "img" / "banner.jpg").write_bytes(b"<svg/>")),
+        ("plate has the wrong size", "images", [], lambda d: (d / "img" / f"{first}.jpg").write_bytes((d / "img" / "banner.jpg").read_bytes())),
+        ("banner is cut short", "images", [], lambda d: (d / "img" / "banner.jpg").write_bytes((d / "img" / "banner.jpg").read_bytes()[:-2])),
+        ("banner has the wrong size", "images", [], lambda d: (d / "img" / "banner.jpg").write_bytes((d / "img" / f"{first}.jpg").read_bytes())),
+        ("image is too large", "images", [], lambda d: (d / "img" / f"{first}.jpg").write_bytes((d / "img" / f"{first}.jpg").read_bytes() + b"\x00" * 400_000)),
+        ("money amount", "forbidden", [], lambda d: edit(d, "llms.txt", "## Sites", "$5\n\n## Sites")),
         ("second page", "files", [], lambda d: (d / "second.html").write_text("<!doctype html>")),
-        ("a row of dots encodes another title", "rules", [], lambda d: flip_first_dot(d, "rules/houses.svg")),
-        ("a row of dots uses the accent", "accent", [], lambda d: edit(d, "rules/houses.svg", "<style>", "<style>.d{fill:#e5251c}")),
-        ("a row of dots is missing", "files", [], lambda d: (d / "rules" / "houses.svg").unlink()),
-        ("a row of dots is extra", "files", [], lambda d: (d / "rules" / "extra.svg").write_text("<svg/>")),
-        ("a row of dots without aria-hidden", "a11y", [], lambda d: edit(d, "index.html", 'alt="" aria-hidden="true"', 'alt=""')),
-        ("a section without its row of dots", "hero", [], lambda d: edit(d, "index.html", '<img class="punch" src="rules/houses.svg" width="376" height="8" alt="" aria-hidden="true">\n', "")),
-        ("weave inside the left third", "hero", [], lambda d: move_weave(d, hero)),
-        ("hero file is not valid XML", "parse", [], lambda d: (d / hero).write_text("<svg", encoding="utf-8")),
-        ("header shows another image", "hero", [], lambda d: edit(d, "index.html", f'src="{hero}"', 'src="mark.svg"')),
-        ("hero file missing", "files", [], lambda d: (d / hero).unlink()),
-        ("non-ASCII in llms.txt", "voice", [], lambda d: edit(d, "llms.txt", "## Houses", "caf\u00e9\n\n## Houses")),
-        ("subtitle line missing", "content", [], lambda d: edit(d, "index.html", f'<p class="subtitle">{SUBTITLE}</p>', "")),
-        ("subtitle line changed", "content", [], lambda d: edit(d, "index.html", "Foundations for science", "Foundations for fun")),
-        ("subtitle line before the tagline", "content", [], lambda d: edit_all(d, "index.html", (f'<p class="subtitle">{SUBTITLE}</p>', ""), ('<p class="tagline">', f'<p class="subtitle">{SUBTITLE}</p><p class="tagline">'))),
-        ("subtitle line missing in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", f"{SUBTITLE}\n\n", "")),
-        ("old footer on the page", "content", [], lambda d: edit(d, "index.html", ", guided by humans.", ".")),
-        ("old footer in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", ", guided by humans.", ".")),
-        ("a paper's status changed", "papers", [], lambda d: edit(d, "index.html", ">under review<", ">accepted<")),
-        ("a lab log status changed", "log", [], lambda d: edit(d, "index.html", ">in preparation</span><p>Algebraic", ">published</span><p>Algebraic")),
-        ("an extra row in the lab log", "log", [], lambda d: edit(d, "index.html", "what failed</p></li>", "what failed</p></li><li>Unapproved draft</li>")),
-        ("a second lab log section in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", "## Houses", "## Lab log\n\n- Unapproved draft (in preparation)\n\n## Houses")),
-        ("a lab log entry missing in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", "- Algebraic Patterns, the machine-made lab log: short posts built on the lab's own data, each with a section on what failed (in preparation)\n", "")),
-        ("a paper missing in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", "- OpenModalPy: modal decomposition of spatiotemporal data (in preparation)\n", "")),
-        ("footer missing in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", f"\n\n{FOOTER}", "")),
-        ("old subtitle line", "content", [], lambda d: edit(d, "index.html", "Foundations for science and engineering, built for humans today and agents tomorrow.", "A hobby: side projects, made in spare time.")),
-        ("how we work comes back", "projects", [], lambda d: edit(d, "index.html", '<main id="main">', '<main id="main"><h2 id="work">How we work</h2>')),
-        ("a group heading is renamed", "projects", [], lambda d: edit(d, "index.html", ">Tools for agents<", ">Tools<")),
-        ("two projects swap groups", "projects", [], lambda d: edit_all(d, "index.html", (f'{OWNER}/bun-do"', f'{OWNER}/tmp"'), (f'{OWNER}/pdf-next"', f'{OWNER}/bun-do"'), (f'{OWNER}/tmp"', f'{OWNER}/pdf-next"'))),
-        ("a group heading is renamed in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", "## Tools for agents", "## Tools")),
-        ("unexpected site link", "links", [], lambda d: edit(d, "index.html", "against ROOT</p>", 'against ROOT <a class="site" href="https://machine-made.github.io/chaos-atlas/">site</a></p>')),
-        ("unexpected site link on another host", "links", [], lambda d: edit(d, "index.html", "against ROOT</p>", 'against ROOT <a class="site" href="https://example.net/">site</a></p>')),
+        ("mark file missing", "files", [], lambda d: (d / "mark.svg").unlink()),
+        ("old hero comes back", "files", [], lambda d: (d / "heroes").mkdir() or (d / "heroes" / "x.svg").write_text("<svg/>")),
+        ("non-ASCII in llms.txt", "voice", [], lambda d: edit(d, "llms.txt", "## Sites", "café\n\n## Sites")),
+        ("non-ASCII in the page", "voice", [], lambda d: edit(d, "index.html", "<body>", "<body>café")),
+        ("the footer dot written raw", "voice", [], lambda d: edit(d, "index.html", "&middot;", "·")),
+        ("the top bar loses a site", "content", [], lambda d: edit(d, "index.html", f'<a href="{nav_other}">{other_name}</a>\n', "")),
+        ("the top bar marks another site", "content", [], lambda d: edit_all(d, "index.html", (' aria-current="page"', ""), (f'<a href="{nav_other}">', f'<a href="{nav_other}" aria-current="page">'))),
+        ("a site linked twice", "links", [], lambda d: edit(d, "index.html", "</footer>", f'<a href="{nav_other}">x</a></footer>')),
+        ("old fonts tab comes back", "content", [], lambda d: edit(d, "index.html", "</nav>", '<a href="https://machine-made.github.io/type/">fonts</a>\n</nav>')),
+        ("the banner is not in the h1", "content", [], lambda d: edit(d, "index.html", "<h1><img", "<h1></h1><img")),
+        ("banner shows another image", "content", [], lambda d: edit(d, "index.html", 'src="img/banner.jpg"', f'src="img/{first}.jpg"')),
+        ("org line changed", "content", [], lambda d: edit(d, "index.html", f'<p class="line">{html.escape(LINE)}', '<p class="line">Another line.')),
+        ("name paragraph changed", "content", [], lambda d: edit(d, "index.html", f'<p class="blurb">{html.escape(BLURB)}', '<p class="blurb">Another paragraph.')),
+        ("line and paragraph swap", "content", [], lambda d: edit_all(d, "index.html", ('<p class="line">', '<p class="tmp">'), ('<p class="blurb">', '<p class="line">'), ('<p class="tmp">', '<p class="blurb">'))),
+        ("org line missing in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", f"> {LINE}", "> ")),
+        ("name paragraph missing in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", f"{BLURB}\n\n", "")),
+        ("old footer text", "content", [], lambda d: edit(d, "index.html", "<footer class=\"wrap\">\n<p>", "<footer class=\"wrap\">\n<p>An open-source workshop. ")),
+        ("footer line changed", "content", [], lambda d: edit(d, "index.html", "&middot; openfluids", "&middot; fluids")),
+        ("page order changed", "content", [], move_footer_up),
+        ("sites missing in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", "## Sites", "## Elsewhere")),
+        ("a group heading is renamed", "projects", [], lambda d: edit(d, "index.html", f">{GROUPS[0][0]}</h2>", ">Tools</h2>")),
+        ("a group has no label class", "projects", [], lambda d: edit(d, "index.html", '<h2 class="lbl"', "<h2")),
+        ("a project is dropped", "projects", [], lambda d: edit(d, "index.html", next(m for m in re.findall(r'<li class="plate">.*?</li>\n', read_index(d), re.S) if f"/{first}" in m), "")),
+        *(
+            [("two projects swap places", "projects", [], lambda d: edit_all(d, "index.html", (f"/{first}\"", "/zz-swap\""), (f"/{second}\"", f"/{first}\""), ("/zz-swap\"", f"/{second}\"")))]
+            if second != first
+            else []
+        ),
+        ("a project is added", "projects", [], lambda d: edit(d, "index.html", "</ul>", f'<li class="plate"><a class="whole" href="https://github.com/{OWNER}/{first}">x</a></li></ul>')),
+        ("a group heading is renamed in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", f"## {GROUPS[0][0]}", "## Tools")),
+        ("unexpected site link", "links", [], lambda d: edit(d, "index.html", f'<span class="nm">{second}</span>', f'<a class="nm" href="https://machine-made.github.io/zz/">{second}</a>')),
+        ("unexpected site link on another host", "projects", [], lambda d: edit(d, "index.html", f'<span class="nm">{second}</span>', f'<a class="nm" href="https://example.net/">{second}</a>')),
+        ("plate name is a heading", "projects", [], lambda d: edit(d, "index.html", f'<span class="nm">{second}</span>', f'<h3 class="nm">{second}</h3>')),
         ("moved repository listed again", "projects", [], lambda d: edit(d, "index.html", "</ul>", f'<li><a href="https://github.com/{OWNER}/chaos-atlas">chaos-atlas</a><p>x</p></li></ul>')),
-        ("redirect page missing", "files", [], lambda d: (d / "chaos-atlas" / "index.html").unlink()),
-        ("redirect page extra", "files", [], lambda d: (d / "other").mkdir() or (d / "other" / "index.html").write_text(redirect_page("other", "https://example.net/"))),
-        ("redirect to an unlisted target", "redirects", [], lambda d: (d / "chaos-atlas" / "index.html").write_text(redirect_page("chaos-atlas", "https://example.net/chaos-atlas/"))),
-        ("redirect refresh differs from canonical", "redirects", [], lambda d: edit(d, "dynachaos/index.html", 'content="0; url=https://github.com/openfluids/dynachaos"', 'content="0; url=https://example.net/"')),
-        ("redirect page with a script", "redirects", [], lambda d: edit(d, "dynachaos/index.html", "</head>", "<script>1</script></head>")),
-        ("accent in a fill attribute", "accent", [], lambda d: edit(d, hero, '<rect class="g"', '<rect fill="#0000ff" class="g"')),
         ("accent in a style attribute", "accent", [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<path style="fill:#00f" class="k"')),
         ("accent in stop-color", "accent", [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<path stop-color="#00ff00" class="k"')),
         ("named colour in a stroke", "accent", [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<path stroke="red" class="k"')),
         ("named colour in an svg rule", "accent", [], lambda d: edit(d, "mark.svg", ".k{fill:", ".k{stroke:red;fill:")),
-        ("gradient in the hero", "colour", [], lambda d: edit(d, hero, "<defs>", '<defs><linearGradient id="z"/>')),
-        ("private name in a class value", "private", ["zzprivate"], lambda d: edit(d, "index.html", '<main id="main">', '<main id="main" class="zzprivate">')),
-        ("private name in an id value", "private", ["zzprivate"], lambda d: edit(d, "index.html", 'id="houses"', 'id="zzprivate"')),
-        ("unknown attribute", "attrs", [], lambda d: edit(d, "index.html", '<main id="main">', '<main id="main" data-x="1">')),
+        ("gradient in the mark", "colour", [], lambda d: edit(d, "mark.svg", "<rect", '<defs><linearGradient id="z"/></defs><rect')),
+        ("private name in a class value", "private", ["zzprivate"], lambda d: edit(d, "index.html", '<main id="main"', '<main id="main" class="zzprivate"')),
+        ("private name in an id value", "private", ["zzprivate"], lambda d: edit(d, "index.html", 'id="main"', 'id="zzprivate"')),
+        ("unknown attribute", "attrs", [], lambda d: edit(d, "index.html", '<main id="main"', '<main data-x="1" id="main"')),
         ("css imports a remote file", "links", [], lambda d: edit(d, "style.css", ":root{", '@import url("https://example.net/x.css");:root{')),
         ("css string import", "links", [], lambda d: edit(d, "style.css", ":root{", '@import "https://example.net/x.css";:root{')),
         ("css url on a look-alike font host", "links", [], lambda d: edit(d, "style.css", ":root{", "a{background:url(https://fonts.gstatic.com.example.net/f.woff2)}:root{")),
         ("css url leaves docs/", "links", [], lambda d: edit(d, "style.css", ":root{", "a{background:url(../README.md)}:root{")),
         ("css data url", "links", [], lambda d: edit(d, "style.css", ":root{", "a{background:url(data:image/png;base64,AAAA)}:root{")),
-        ("css uses a local file", None, [], lambda d: edit(d, "style.css", ":root{", "a{list-style-image:url(mark.svg)}:root{")),
-        ("script in the hero svg", "no-js", [], lambda d: edit(d, hero, "<title>", "<script>1</script><title>")),
+        ("script in the mark svg", "no-js", [], lambda d: edit(d, "mark.svg", "<title>", "<script>1</script><title>")),
         ("event handler in the mark svg", "no-js", [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<path onclick="x()" class="k"')),
-        ("external href in the hero svg", "links", [], lambda d: edit(d, hero, "<defs>", '<defs><use href="https://example.net/x.svg#a"/>')),
-        ("remote url in an svg rule", "links", [], lambda d: edit(d, hero, "<style>", "<style>.z{fill:url(https://example.net/x.svg#a)}")),
+        ("external href in the mark svg", "links", [], lambda d: edit(d, "mark.svg", "<rect", '<use href="https://example.net/x.svg#a"/><rect')),
+        ("remote url in an svg rule", "links", [], lambda d: edit(d, "mark.svg", "<style>", "<style>.z{fill:url(https://example.net/x.svg#a)}")),
         ("css image-set", "links", [], lambda d: edit(d, "style.css", ":root{", 'a{background:image-set("mark.svg" 1x)}:root{')),
         ("css image()", "links", [], lambda d: edit(d, "style.css", ":root{", 'a{background:image("mark.svg")}:root{')),
         ("css prefixed cross-fade", "links", [], lambda d: edit(d, "style.css", ":root{", "a{background:-webkit-cross-fade(url(mark.svg),url(mark.svg),50%)}:root{")),
         ("css escaped function name", "css", [], lambda d: edit(d, "style.css", ":root{", "a{background:\\69mage-set(mark.svg 1x)}:root{")),
-        ("image-set in an svg rule", "links", [], lambda d: edit(d, hero, "<style>", "<style>.z{fill:image-set(x 1x)}")),
         ("named colour in style.css", "accent", [], lambda d: edit(d, "style.css", "box-sizing", "color:red;box-sizing")),
         ("upper-case named colour", "accent", [], lambda d: edit(d, "style.css", "box-sizing", "color:BLUE;box-sizing")),
-        ("named colour in a custom property", "accent", [], lambda d: edit(d, "style.css", "--rule:#d9d9d9", "--rule:blue")),
         ("named colour in a border", "accent", [], lambda d: edit(d, "style.css", "box-sizing", "border:1px solid tomato;box-sizing")),
         ("named colour in a var fallback", "accent", [], lambda d: edit(d, "style.css", "box-sizing", "color:var(--fg,navy);box-sizing")),
         ("system colour", "accent", [], lambda d: edit(d, "style.css", "box-sizing", "color:LinkText;box-sizing")),
         ("escaped colour name", "css", [], lambda d: edit(d, "style.css", "box-sizing", "color:\\72 ed;box-sizing")),
         ("colour mix function", "colour", [], lambda d: edit(d, "style.css", "box-sizing", "color:color-mix(in srgb,#fff,#000);box-sizing")),
         ("black, white and transparent are allowed", None, [], lambda d: edit(d, "style.css", "box-sizing", "color:black;background:WHITE;border-color:transparent;outline-color:currentColor;box-sizing")),
-        ("a class with a colour name is not a colour", None, [], lambda d: edit(d, "style.css", ":root{", ".red:hover{margin:0}a:not(.tan){margin:0}:root{")),
+        ("a class with a colour name is not a colour", None, [], lambda d: edit(d, "style.css", "box-sizing", "box-sizing:border-box}.red{margin:0}a:not(.tan){margin:0}.zz{margin:0")),
         ("named colour in a page style block", "accent", [], lambda d: edit(d, "index.html", "<body>", "<body><style>a{color:red}</style>")),
         ("hex accent in a page style block", "accent", [], lambda d: edit(d, "index.html", "<body>", "<body><style>a{color:#00f}</style>")),
         ("accent as the fallback of a fragment paint", "accent", [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<path fill="url(#a) #0000ff" class="k"')),
         ("named fallback of a fragment paint", "accent", [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<path fill="url(#a) red" class="k"')),
         ("function fallback of a fragment paint", "colour", [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<path fill="url(#a) rgb(0,0,255)" class="k"')),
         ("keyword fallback of a fragment paint", None, [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<path fill="url(#a) currentColor" class="k"')),
-        ("text colour as a hex grey", "contrast", [], lambda d: edit(d, "style.css", "box-sizing", "color:#777;box-sizing")),
-        ("text colour from a low-contrast token", "contrast", [], lambda d: edit(d, "style.css", "box-sizing", "color:var(--rule);box-sizing")),
+        ("text colour from a low-contrast grey", "contrast", [], lambda d: edit(d, "style.css", "box-sizing", f"color:{THEME['ground'].replace('0', '1', 1)};box-sizing")),
+        ("text colour from the edge token", "contrast", [], lambda d: edit(d, "style.css", "box-sizing", "color:var(--edge);box-sizing")),
         ("text on a low-contrast background token", "contrast", [], lambda d: edit(d, "style.css", "box-sizing", "color:var(--fg);background:var(--muted);box-sizing")),
         ("background shorthand with more than a token", "contrast", [], lambda d: edit(d, "style.css", "box-sizing", "background:var(--bg) url(mark.svg);box-sizing")),
         ("text colour from an unknown token", "contrast", [], lambda d: edit(d, "style.css", "box-sizing", "color:var(--nope);box-sizing")),
         ("a pair of palette tokens is allowed", None, [], lambda d: edit(d, "style.css", "box-sizing", "color:var(--muted);background:var(--bg) !important;box-sizing")),
         ("upper-case colour function", "colour", [], lambda d: edit(d, "style.css", "box-sizing", "color:RGB(0,0,255);box-sizing")),
         ("upper-case gradient", "colour", [], lambda d: edit(d, "style.css", "box-sizing", "background:LINEAR-GRADIENT(red,blue);box-sizing")),
+        ("a second gradient", "colour", [], lambda d: edit(d, "style.css", "box-sizing", "background:linear-gradient(#000,#000);box-sizing")),
+        ("the banner mask changed", "colour", [], lambda d: edit(d, "style.css", "#000 10%", "#000 20%")),
+        ("the banner mask missing", "colour", [], lambda d: edit(d, "style.css", MASK, "")),
         ("base tag", "no-js", [], lambda d: edit(d, "index.html", "<body>", '<body><base href="https://example.net/">')),
-        ("private name as a character reference in the hero", "private", ["zzprivate"], lambda d: edit(d, hero, "<title>", "<title>zz&#x70;rivate ")),
+        ("private name as a character reference in the mark", "private", ["zzprivate"], lambda d: edit(d, "mark.svg", "<title>", "<title>zz&#x70;rivate ")),
         ("private name as a nested reference in an attribute", "private", ["zzprivate"], lambda d: edit(d, "mark.svg", '<rect class="k"', '<path id="zz&amp;#112;rivate" class="k"')),
-        ("private repo as a character reference in the hero", "private", [], lambda d: edit(d, hero, "<title>", "<title>github.com/&#x6d;achine-made/zzprivate ")),
+        ("private repo as a character reference in the mark", "private", [], lambda d: edit(d, "mark.svg", "<title>", "<title>github.com/&#x6d;achine-made/zzprivate ")),
         ("remote url in a filter attribute", "links", [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<path filter="url(https://example.net/x.svg#f)" class="k"')),
-        ("remote url in a mask attribute", "links", [], lambda d: edit(d, hero, '<rect class="g"', '<rect mask="url(//example.net/x.svg#m)" class="g"')),
-        ("remote url in a clip-path attribute", "links", [], lambda d: edit(d, hero, '<rect class="g"', '<rect clip-path="url(x.svg#c)" class="g"')),
         ("remote url in a fill attribute", "links", [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<path fill="url(https://example.net/x.svg#f)" class="k"')),
         ("local fragment in a filter attribute", None, [], lambda d: edit(d, "mark.svg", '<rect class="k"', '<path filter="url(#f)" class="k"')),
-        ("USD before an amount", "forbidden", [], lambda d: edit(d, "llms.txt", "## Houses", "USD 5\n\n## Houses")),
-        ("CHF before an amount", "forbidden", [], lambda d: edit(d, "llms.txt", "## Houses", "chf 5\n\n## Houses")),
-        ("EUR before an amount", "forbidden", [], lambda d: edit(d, "llms.txt", "## Houses", "Eur5\n\n## Houses")),
-        ("USD after an amount", "forbidden", [], lambda d: edit(d, "llms.txt", "## Houses", "5 USD\n\n## Houses")),
+        ("USD before an amount", "forbidden", [], lambda d: edit(d, "llms.txt", "## Sites", "USD 5\n\n## Sites")),
+        ("CHF before an amount", "forbidden", [], lambda d: edit(d, "llms.txt", "## Sites", "chf 5\n\n## Sites")),
+        ("EUR before an amount", "forbidden", [], lambda d: edit(d, "llms.txt", "## Sites", "Eur5\n\n## Sites")),
+        ("USD after an amount", "forbidden", [], lambda d: edit(d, "llms.txt", "## Sites", "5 USD\n\n## Sites")),
         ("private name as an element name", "private", ["zzprivate"], lambda d: edit(d, "index.html", "<body>", "<body><zzprivate></zzprivate>")),
+        # The behaviour rules of the brief: each break is one rule moved out of its media query.
+        ("a hover rule outside the hover query", "hover", [], lambda d: edit(d, "style.css", "box-sizing", "box-sizing:border-box}.plate:hover{margin:0")),
+        ("a scaled plate image is not clipped", "hover", [], lambda d: edit(d, "style.css", "min-width: 0;\n  overflow: hidden;", "min-width: 0;")),
+        ("a hover rule in the wrong query", "hover", [], lambda d: edit(d, "style.css", "box-sizing", "box-sizing:border-box}@media (min-width: 1px){.plate:hover{margin:0}}.zz{margin:0")),
+        ("a hover rule in the hover query is allowed", None, [], lambda d: edit(d, "style.css", "box-sizing", "box-sizing:border-box}@media (hover: hover){.zz:hover{margin:0}}.zz{margin:0")),
+        ("a transition outside the motion query", "motion", [], lambda d: edit(d, "style.css", "box-sizing", "box-sizing:border-box}.zz{transition:color 1s")),
+        ("a transform outside the motion query", "motion", [], lambda d: edit(d, "style.css", "box-sizing", "box-sizing:border-box}.zz{transform:scale(2)")),
+        ("a hover transform without the motion query", "motion", [], lambda d: edit(d, "style.css", "@media (hover: hover) and (prefers-reduced-motion: no-preference)", "@media (hover: hover)")),
+        ("an animation in a hover query only", "motion", [], lambda d: edit(d, "style.css", "box-sizing", "box-sizing:border-box}@media (hover: hover){.zz{animation:none}}.zz{margin:0")),
+        ("smooth scrolling outside the motion query", "motion", [], lambda d: edit(d, "style.css", "box-sizing", "box-sizing:border-box}html{scroll-behavior:smooth")),
+        ("the focus ring is removed", "focus", [], lambda d: edit(d, "style.css", "outline: 2px solid var(--accent);", "outline: none;")),
+        ("the focus ring is not the accent", "focus", [], lambda d: edit(d, "style.css", "outline: 2px solid var(--accent);", "outline: 2px solid var(--fg);")),
+        ("an outline is removed on a link", "focus", [], lambda d: edit(d, "style.css", "box-sizing", "box-sizing:border-box}.plate a{outline:none}.zz{margin:0")),
+        ("the plate grid minimum changed", "responsive", [], lambda d: edit(d, "style.css", "minmax(min(100%, 240px), 1fr)", "minmax(min(100%, 150px), 1fr)")),
+        ("the plate grid has a fixed minimum", "responsive", [], lambda d: edit(d, "style.css", "minmax(min(100%, 240px), 1fr)", "minmax(240px, 1fr)")),
+        ("the content width changed", "responsive", [], lambda d: edit(d, "style.css", "--max: 1200px", "--max: 1280px")),
+        ("a forced width", "responsive", [], lambda d: edit(d, "style.css", "box-sizing", "width:900px;box-sizing")),
+        ("no-wrap text", "responsive", [], lambda d: edit(d, "style.css", "box-sizing", "white-space:nowrap;box-sizing")),
+        ("the accent never used", "accent", [], lambda d: (d / "style.css").write_text(re.sub(r"var\(--accent\)", "var(--fg)", (d / "style.css").read_text()))),
     ]
+    if REDIRECTS:
+        folder = next(iter(REDIRECTS))
+        target = REDIRECTS[folder]
+        cases += [
+            ("redirect page missing", "files", [], lambda d: (d / folder / "index.html").unlink()),
+            ("redirect page extra", "files", [], lambda d: (d / "other").mkdir() or (d / "other" / "index.html").write_text(redirect_page("other", "https://example.net/"))),
+            ("redirect to an unlisted target", "redirects", [], lambda d: (d / folder / "index.html").write_text(redirect_page(folder, "https://example.net/x/"))),
+            ("redirect refresh differs from canonical", "redirects", [], lambda d: edit(d, f"{folder}/index.html", f'content="0; url={target}"', 'content="0; url=https://example.net/"')),
+            ("redirect page with a script", "redirects", [], lambda d: edit(d, f"{folder}/index.html", "</head>", "<script>1</script></head>")),
+        ]
     total, bad = 0, 0
 
     def report(ok: bool, title: str) -> None:
@@ -1314,7 +1390,7 @@ def self_test() -> None:
             print(f"SELF-TEST FAIL: {title}")
 
     with tempfile.TemporaryDirectory() as tmp:
-        for title, rule, deny, mutate in cases + [("clean copy", None, [], lambda d: None)]:
+        for title, rule, deny, mutate in [*cases, ("clean copy", None, [], lambda d: None)]:
             root = Path(tmp) / "case"
             shutil.rmtree(root, ignore_errors=True)
             shutil.copytree(real, root / "docs")
@@ -1336,20 +1412,28 @@ def self_test() -> None:
             {"groups": []},
             {"groups": "x"},
             {"groups": [{"title": "A", "projects": []}]},
-            {"groups": [{"title": "A", "projects": [{"repo": "x", "line": "y"}]}, {"title": "a!", "projects": [{"repo": "z", "line": "y"}]}]},
-            {"groups": [{"title": "A", "projects": [{"repo": "x", "line": "y"}, {"repo": "x", "line": "y"}]}]},
-            {"groups": [{"title": "A", "projects": [{"repo": "x", "line": "y", "site": "http://x"}]}]},
-            {"subtitle": 5},
+            {"groups": [{"title": "A", "projects": [{"repo": first, "line": "y"}]}, {"title": "a!", "projects": [{"repo": second, "line": "y"}]}]},
+            {"groups": [{"title": "A", "projects": [{"repo": first, "line": "y"}, {"repo": first, "line": "y"}]}]},
+            {"groups": [{"title": "A", "projects": [{"repo": first, "line": "y", "site": "http://x"}]}]},
+            {"groups": [{"title": "A", "projects": [{"repo": "zz-no-image", "line": "y"}]}]},
+            {"groups": [{"title": "A", "projects": [{"repo": first, "line": "café"}]}]},
+            {"blurb": 5},
+            {"line": "café"},
+            {"theme": {"ground": "#000", "text": "#ffffff", "muted": "#888888", "accent": "#ff0000", "font": WEFT, "size": 14, "line_size": 22}},
+            {"theme": {**json.loads((ROOT / "site.json").read_text(encoding="utf-8"))["theme"], "font": "Comic Sans"}},
+            {"nav": []},
+            {"nav": ["machine-made"]},
+            {"redirects": {"style.css": "https://example.net/x"}},
+            {"redirects": {"llms.txt": "https://example.net/x"}},
         ]
         for changes in bad_sites:
             report(build_rejects(changes), f"build.py accepted {str(changes)[:60]}")
-        for bad_year in (True, False, "2026", 2026.0, None):
-            report(build_rejects({"year": bad_year}), f"build.py accepted the year {bad_year!r}")
         for problem in site_links_hold():
             report(False, problem)
         report(renamed_site_passes("loom-x"), "a site under another name does not pass the checks")
-        report(build_needs_fonts(), "build.py builds without the fonts in fonts/")
-        report(tagline_keeps_its_tail(), "build.py cuts a tagline whose last part has no end mark")
+        report(build_needs("fonts/mm-weft.woff2"), "build.py builds without the fonts in fonts/")
+        report(build_needs(f"img/org/{name}.jpg"), "build.py builds without the banner of the house")
+        report(build_needs(f"img/repo/{first}.jpg"), "build.py builds without the banner of a repository")
         missing = str(Path(tmp) / "missing")
         denied = Path(tmp) / "deny.txt"
         denied.write_text("# a comment\n\nzz one\n  zz two  \n#zz three\n", encoding="utf-8")
@@ -1363,36 +1447,53 @@ def self_test() -> None:
     print(f"SELF-TEST OK ({total} cases)")
 
 
+def move_footer_up(docs: Path) -> None:
+    """Put the footer before the main part: the page order is broken."""
+    text = read_index(docs)
+    foot = re.search(r"<footer.*?</footer>\n", text, re.S)
+    if foot is None:
+        raise AssertionError("self-test is stale: no footer in docs/index.html")  # noqa: TRY003
+    text = text.replace(foot.group(0), "").replace('<main id="main"', foot.group(0) + '<main id="main"', 1)
+    (docs / "index.html").write_text(text, encoding="utf-8")
+
+
+def read_index(docs: Path) -> str:
+    return (docs / "index.html").read_text(encoding="utf-8")
+
+
 def load_allow(folder: str) -> None:
-    """Point the checks at another house. Its allow.json is the public list, kept apart from site.json
+    """Point the checks at a house. Its allow.json is the public list, kept apart from site.json
     on purpose: the page passes only when the two agree."""
-    global ROOT, DOCS, OWNER, GROUPS, PUBLIC_REPOS, SITE_LINKS, REDIRECTS, HOUSE_URLS, TAB_URLS, TAGLINE, SUBTITLE, FOOTER, PAPERS, LOG  # noqa: PLW0603
+    global ROOT, DOCS, OWNER, LINE, BLURB, THEME, SELF, SITES, GROUPS, SITE_LINKS, REDIRECTS  # noqa: PLW0603
     root = Path(folder).resolve()
     try:
         allow = json.loads((root / "allow.json").read_text(encoding="utf-8"))
-        OWNER = str(allow["owner"])
+        OWNER, LINE, BLURB = str(allow["owner"]), str(allow["line"]), str(allow["blurb"])
+        THEME = {k: str(allow["theme"][k]) for k in ("ground", "text", "muted", "accent", "font")}
+        SITES = tuple((str(n), str(u)) for n, u in allow["sites"])
+        SELF = str(allow["self"])
         GROUPS = tuple((str(title), tuple(str(r) for r in repos)) for title, repos in allow["groups"])
         SITE_LINKS = {str(k): str(v) for k, v in allow.get("site_links", {}).items()}
         REDIRECTS = {str(k): str(v) for k, v in allow.get("redirects", {}).items()}
-        HOUSE_URLS = tuple(str(u) for u in allow["house_urls"])
-        TAB_URLS = tuple(str(u) for u in allow["tab_urls"])
-        TAGLINE, SUBTITLE, FOOTER = str(allow["tagline"]), str(allow["subtitle"]), str(allow["footer"])
-        PAPERS = tuple((str(s), str(t)) for s, t in allow.get("papers", []))
-        LOG = tuple((str(s), str(t)) for s, t in allow.get("log", []))
+        site_owner = str(json.loads((root / "site.json").read_text(encoding="utf-8"))["owner"])
     except (OSError, ValueError, KeyError, TypeError) as exc:
         print(f"FAIL args: {folder}/allow.json is missing or incomplete ({exc.__class__.__name__})")
         sys.exit(2)
-    PUBLIC_REPOS = tuple(repo for _, repos in GROUPS for repo in repos)
+    if site_owner != OWNER:
+        print(f"FAIL args: {folder}/allow.json owner {OWNER!r} differs from site.json owner {site_owner!r}")
+        sys.exit(2)
+    if THEME["font"] not in FONT_SPECS or SELF not in {n for n, _ in SITES}:
+        print(f"FAIL args: {folder}/allow.json names a font or a current site that the checks do not know")
+        sys.exit(2)
     ROOT, DOCS = root, root / "docs"
 
 
 def main() -> None:
     args = parse_args(sys.argv[1:])
+    load_allow(args.site or str(ROOT))
     if args.self_test:
         self_test()
         return
-    if args.site:
-        load_allow(args.site)
     found = run_checks(load_deny(args.deny))
     if found:
         print("\n".join(found))

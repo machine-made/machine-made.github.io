@@ -1,22 +1,37 @@
 {
   "owner": "BoringQuantSystems",
+  "self": "BoringQuantSystems",
+  "line": "Boring on purpose. Deterministic infrastructure for non-deterministic systems.",
+  "blurb": "The best systems are the ones nobody talks about. BoringQuantSystems aims to be one of them.",
+  "theme": {
+    "ground": "#050507",
+    "text": "#ecebe6",
+    "muted": "#8b8b90",
+    "accent": "#3ddc97",
+    "font": "EB Garamond"
+  },
+  "sites": [
+    [
+      "machine-made",
+      "https://machine-made.github.io/"
+    ],
+    [
+      "openfluids",
+      "https://openfluids.github.io/"
+    ],
+    [
+      "BoringQuantSystems",
+      "https://boringquantsystems.github.io/"
+    ]
+  ],
   "groups": [
     [
       "Engines",
       [
-        "nanobook"
+        "BoringQuantSystems/nanobook"
       ]
     ]
   ],
   "site_links": {},
-  "house_urls": [
-    "https://machine-made.github.io/",
-    "https://openfluids.github.io/"
-  ],
-  "tab_urls": [
-    "https://machine-made.github.io/type/"
-  ],
-  "tagline": "Boring means trustworthy.",
-  "subtitle": "A machine-made house: exact, reproducible engines for markets.",
-  "footer": "An open-source workshop. Built by agents, guided by humans."
+  "redirects": {}
 }

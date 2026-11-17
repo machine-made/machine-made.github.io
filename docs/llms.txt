@@ -1,48 +1,38 @@
 # machine-made
 
-> Made by machines. Proven for machines.
+> A home-built, asynchronous factory for scientific software.
 
-Foundations for science and engineering, built for humans today and agents tomorrow.
-
-## Science and numerics
-
-- [minuit2-rs](https://github.com/machine-made/minuit2-rs): Pure Rust port of CERN ROOT Minuit2, checked against ROOT
-- [libsvm-rs](https://github.com/machine-made/libsvm-rs): Pure Rust LIBSVM, checked against the C++ original
-- [nebula-quanta](https://github.com/machine-made/nebula-quanta): Deterministic Barnes-Hut N-body simulation in Rust
-- [nanochat-rs](https://github.com/machine-made/nanochat-rs): Small language models trained in Rust, benchmarked against nanochat
-
-## Desktop and editor tools
-
-- [pdf-next](https://github.com/machine-made/pdf-next): PDF, image and Markdown viewer that reloads the moment the file changes
-- [vscode-pdf-next](https://github.com/machine-made/vscode-pdf-next): PDF viewer for VS Code: PDF.js, live reload, search, outline
-- [vscode-diff-next](https://github.com/machine-made/vscode-diff-next): Compare branches or two workspaces in VS Code
-- [homebrew-tap](https://github.com/machine-made/homebrew-tap): Homebrew casks for machine-made software
-
-## Tools for agents
-
-- [bun-do](https://github.com/machine-made/bun-do): Local-first todo app for people and AI agents: REST API and MCP server
-- [fortran-lsp](https://github.com/machine-made/fortran-lsp): Fortran language server plugin for Claude Code
-- [pi-effort](https://github.com/machine-made/pi-effort): Pi command to inspect and change thinking effort
-- [pi-rethread](https://github.com/machine-made/pi-rethread): Pi extension: each step ends with a letter; the next starts fresh
+In 1804 the Jacquard loom wove patterns read from punched cards. The pattern came from a person; the cloth came from the machine. The name and the mark come from those cards.
 
 ## Type
 
-- [type](https://github.com/machine-made/type): machine-made Weft and machine-made Sans: typefaces made by code
+- [type](https://github.com/machine-made/type): Weft, Sans, Heddle and Warp, typefaces made by code ([site](https://machine-made.github.io/type/))
 
-## Papers
+## Science and numerics
 
-- linstabpy: open-source compressible stability and resolvent analysis (under review)
-- LoomBench: a numerical benchmark for coding agents, with hidden oracles, timings and an audit trail (in preparation)
-- From Locking to Collective Chaos: A Reproducible Review of Kaneko's Circle Maps, Torus Instabilities, Coupled Map Lattices and Globally Coupled Maps (in preparation)
-- OpenModalPy: modal decomposition of spatiotemporal data (in preparation)
+- [minuit2-rs](https://github.com/machine-made/minuit2-rs): CERN ROOT Minuit2 in Rust
+- [libsvm-rs](https://github.com/machine-made/libsvm-rs): LIBSVM in Rust
+- [liblinear-rs](https://github.com/machine-made/liblinear-rs): LIBLINEAR in Rust
+- [nebula-quanta](https://github.com/machine-made/nebula-quanta): Barnes-Hut N-body simulation
+- [nanochat-rs](https://github.com/machine-made/nanochat-rs): small language models trained in Rust
 
-## Lab log
+## Tools for agents
 
-- Algebraic Patterns, the machine-made lab log: short posts built on the lab's own data, each with a section on what failed (in preparation)
+- [alexandria](https://github.com/machine-made/alexandria): a research library agents search over MCP
+- [bun-do](https://github.com/machine-made/bun-do): a todo list for people and agents
+- [fortran-lsp](https://github.com/machine-made/fortran-lsp): Fortran for Claude
+- [pi-effort](https://github.com/machine-made/pi-effort): thinking effort for Pi
+- [pi-rethread](https://github.com/machine-made/pi-rethread): hand work to a fresh Pi session
+- [tex2speech](https://github.com/machine-made/tex2speech): LaTeX and Markdown as spoken words
 
-## Houses
+## Desktop
 
-- [openfluids](https://openfluids.github.io/): open tools for fluid mechanics
-- [BoringQuantSystems](https://boringquantsystems.github.io/): deterministic quant engines
+- [pdf-next](https://github.com/machine-made/pdf-next): a PDF viewer that reloads when the file changes
+- [vscode-pdf-next](https://github.com/machine-made/vscode-pdf-next): PDF viewing in VS Code
+- [vscode-diff-next](https://github.com/machine-made/vscode-diff-next): branch and workspace diffs in VS Code
 
-An open-source workshop. Built by agents, guided by humans.
+## Sites
+
+- [machine-made](https://machine-made.github.io/)
+- [openfluids](https://openfluids.github.io/)
+- [BoringQuantSystems](https://boringquantsystems.github.io/)

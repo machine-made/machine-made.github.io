@@ -22,6 +22,10 @@
     [
       "BoringQuantSystems",
       "https://boringquantsystems.github.io/"
+    ],
+    [
+      "type",
+      "https://machine-made.github.io/type/"
     ]
   ],
   "groups": [

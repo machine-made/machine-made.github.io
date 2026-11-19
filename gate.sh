@@ -2,7 +2,7 @@
 # The gate: deterministic build, self-tests, site checks, forbidden words.
 # Prints DETERMINISTIC, SELF-TEST OK, OK and "grep clean"; any failure exits 1.
 # MM_DENY_FILE=FILE (outside this repository) also rejects the names listed in FILE.
-# MM_FONTS=DIR (the site fonts, fonts/ in this repository; needs Playwright, fontTools and brotli)
+# MM_FONTS=DIR (the fonts brand.py draws from, brand-fonts/ in this repository; needs Playwright, fontTools and brotli)
 # also builds brand/ twice, compares the hashes and compares the result with the brand/ in this
 # repository.
 set -eu
@@ -46,12 +46,12 @@ if [ -n "${MM_FONTS:-}" ]; then
     exit 1
   fi
   if ! diff -rq "$brand_one" brand; then
-    echo "brand/ is not what brand.py writes; run python3 brand.py --fonts DIR"
+    echo "brand/ is not what brand.py writes; run python3 brand.py --fonts brand-fonts"
     exit 1
   fi
   echo "BRAND DETERMINISTIC"
 else
-  echo "BRAND SKIPPED: set MM_FONTS=fonts to check brand/"
+  echo "BRAND SKIPPED: set MM_FONTS=brand-fonts to check brand/"
 fi
 python3 check_site.py --self-test
 if [ -n "${MM_DENY_FILE:-}" ]; then

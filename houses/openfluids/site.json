@@ -8,9 +8,7 @@
     "text": "#e6eef2",
     "muted": "#8395a0",
     "accent": "#5cc8d6",
-    "font": "Lato",
-    "size": 15,
-    "line_size": 23
+    "font": "machine-made Sans"
   },
   "nav": [
     {
@@ -25,6 +23,10 @@
     {
       "name": "BoringQuantSystems",
       "url": "https://boringquantsystems.github.io/"
+    },
+    {
+      "name": "type",
+      "url": "https://machine-made.github.io/type/"
     }
   ],
   "groups": [
@@ -34,7 +36,8 @@
         {
           "repo": "linstabpy",
           "line": "linear stability and resolvent analysis",
-          "site": "https://linstabpy.vercel.app/"
+          "site": "https://linstabpy.vercel.app/",
+          "site_label": "docs"
         },
         {
           "repo": "nekStab",

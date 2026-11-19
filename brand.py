@@ -2,9 +2,9 @@
 """The profile hero and the avatar, drawn from card.py, the module that draws the logo and the cards of the website.
 
 Usage: python3 brand.py --fonts DIR [--out DIR]
---fonts  the folder of the site fonts: fonts/ in this repository (mm-weft.woff2, mm-sans.woff2,
-         which fonts.py cuts from machine-made/type). Needed. The type in the hero is cut into
-         outlines from these files at fixed axis values, so the hero needs no font.
+--fonts  the folder of the fonts the hero is drawn from: brand-fonts/ in this repository (mm-weft.woff2 and
+         mm-sans.woff2, the 0.1 cut). Needed. The type in the hero is cut into outlines from these files at
+         fixed axis values, so the hero needs no font.
 --out    where the files go; default brand/ in this repository.
 
 Writes profile-hero-light.svg, profile-hero-dark.svg, each as a PNG at 1408 by 469 px and, as

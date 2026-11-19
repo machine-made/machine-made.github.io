@@ -14,12 +14,13 @@ the weave in the header. Every section starts its text there.
 
 ## Type
 
-- machine-made Weft for the name, headings, project names and the footer. machine-made Sans
-  for reading. Both are machine-made typefaces (github.com/machine-made/type, SIL Open Font
-  License 1.1), served from `docs/fonts/` with `font-display: swap`. The page preloads both,
-  because the header uses both.
-- The fonts are variable. `fonts.py` cuts them to Latin-1 and common punctuation: Weft keeps
-  wght 100 to 900 and FRAG 0 to 15, Sans keeps wght 200 to 800. Each file is about 24 KB.
+- machine-made Weft for the top bar, the group labels and the footer, and for the text of machine-made.github.io;
+  machine-made Sans for the text of openfluids.github.io; machine-made Warp for the text of
+  boringquantsystems.github.io. All are machine-made typefaces (github.com/machine-made/type, SIL Open Font
+  License 1.1), served from `docs/fonts/` with `font-display: swap`. Each page preloads the regular face of
+  Weft and of its text font.
+- The fonts are the full variable woff2 files of the 0.2.0 releases, copied unchanged: Weft wght 100 to 900
+  and FRAG 0 to 100, Sans wght 200 to 800 (README, Fonts).
 - Weft has one advance for every glyph, 750 units, and narrow ink, so it sets wide. Mono type has
   negative tracking: -0.08 em on the name, -0.06 em on headings, -0.03 em on project names and
   small text. Sans has a narrow word space, so reading text has 0.05 em of word spacing.

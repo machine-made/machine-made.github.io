@@ -46,12 +46,12 @@ if [ -n "${MM_FONTS:-}" ]; then
     exit 1
   fi
   if ! diff -rq "$brand_one" brand; then
-    echo "brand/ is not what brand.py writes; run python3 brand.py --fonts DIR"
+    echo "brand/ is not what brand.py writes; run python3 brand.py --fonts brand-fonts"
     exit 1
   fi
   echo "BRAND DETERMINISTIC"
 else
-  echo "BRAND SKIPPED: set MM_FONTS=fonts to check brand/"
+  echo "BRAND SKIPPED: set MM_FONTS=brand-fonts to check brand/"
 fi
 python3 check_site.py --self-test
 if [ -n "${MM_DENY_FILE:-}" ]; then

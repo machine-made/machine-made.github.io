@@ -30,7 +30,7 @@ import threading
 from itertools import pairwise
 from pathlib import Path
 
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import BrowserContext, Page, sync_playwright
 
 ROOT = Path(__file__).resolve().parent
 FIT_WIDTHS = (320, 360, 390, 720, 1000, 1280, 1920)
@@ -156,9 +156,9 @@ def plate_problems(grids: list[list[list[float]]]) -> list[str]:
     return problems
 
 
-def system_fonts(context: object, page: object) -> list[str]:
+def system_fonts(context: BrowserContext, page: Page) -> list[str]:
     """Every text node drawn, even in part, in a font that is not a web font of the page."""
-    cdp = context.new_cdp_session(page)  # type: ignore[attr-defined]
+    cdp = context.new_cdp_session(page)
     cdp.send("DOM.enable")
     cdp.send("CSS.enable")
     root = cdp.send("DOM.getDocument", {"depth": -1, "pierce": False})["root"]
@@ -193,6 +193,8 @@ def main() -> None:
     face = json.loads((args.site / "site.json").read_text(encoding="utf-8"))["theme"]["face"]
     wanted = {FAMILIES["weft"], FAMILIES["sans"], FAMILIES[face]}
     axe = args.axe.read_text(encoding="utf-8") if args.axe else None
+    # A report from an earlier run must not stand beside the shots of this one.
+    (out / "report.json").unlink(missing_ok=True)
     server, base = serve(docs)
     report: list[dict] = []
     try:
@@ -308,6 +310,8 @@ def main() -> None:
                 report.append(entry)
                 ctx.close()
             browser.close()
+    except Exception as exc:  # noqa: BLE001  a failed render is a result: record it and fail
+        report.append({"page": "render", "width": 0, "problems": [f"a render failed: {exc.__class__.__name__}: {str(exc)[:200]}"]})
     finally:
         server.shutdown()
     (out / "report.json").write_text(json.dumps(report, indent=1) + "\n", encoding="utf-8")

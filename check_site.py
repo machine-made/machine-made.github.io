@@ -22,6 +22,7 @@ import argparse
 import datetime
 import hashlib
 import html
+import io
 import json
 import os
 import re
@@ -34,8 +35,11 @@ from collections import Counter
 from collections.abc import Callable, Iterator
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import Any, Literal, NoReturn
+from typing import TYPE_CHECKING, Any, Literal, NoReturn
 from urllib.parse import unquote, urlsplit
+
+if TYPE_CHECKING:
+    from fontTools.ttLib import TTFont
 
 # The generator: src/system.css, fonts/, the allow.json of every house. ROOT is the house being checked.
 GEN = Path(__file__).resolve().parent
@@ -1358,8 +1362,8 @@ def check_not_found(page: Page, html_text: str, shown: str | None) -> None:
     for href in re.findall(r'(?:href|src)="([^"#][^"]*)"', html_text):
         if "://" not in href and not href.startswith("/"):
             fail("404", f"the 404 page names {href} relative to itself; it is served at any depth, so start at the root")
-    for target in re.findall(r"url\(([^)]*)\)", page.styles[0] if page.styles else ""):
-        if not target.startswith("/"):
+    for target in (t.strip("\"' ") for style in page.styles for t in re.findall(r"url\(([^)]*)\)", style)):
+        if not target.startswith(("/", "#")):
             fail("404", f"the 404 page loads {target} relative to itself; start at the root")
 
 
@@ -1383,6 +1387,8 @@ def check_leaks(visible: str, deny: list[str]) -> None:
     forwards = {f"{folder}/index.html": url.split("//", 1)[1] for folder, url in REDIRECTS.items()}
     public = {f"github.com/{full}" for full in repos_of()} | {f"github.com/{OWNER}"}
     public |= {u.split("//", 1)[1] for u in release_urls()}
+    # The houses row names the newest release of the other houses, so their repositories are known names too.
+    known = {full.split("/")[1].lower() for full in [*repos_of(), *(f for _, fulls in OTHERS.values() for f in fulls)]}
     for name, raw in emitted(visible):
         # Files are plain ASCII.
         if not raw.isascii():
@@ -1394,7 +1400,7 @@ def check_leaks(visible: str, deny: list[str]) -> None:
             if not ok:
                 fail("private", f"{match} is not in the public list ({name})")
         for repo in RS_NAME.findall(source):
-            if repo.lower() not in {full.split("/")[1].lower() for full in repos_of()}:
+            if repo.lower() not in known:
                 fail("private", f"{repo} looks like a repository that is not in the public list ({name})")
         for word in deny:
             if re.search(rf"(?<![\w]){re.escape(word)}(?![\w])", source, re.I):
@@ -1465,6 +1471,23 @@ def avif_size(data: bytes) -> tuple[int, int] | None:
     return int.from_bytes(data[at + 8 : at + 12], "big"), int.from_bytes(data[at + 12 : at + 16], "big")
 
 
+def decode_problem(data: bytes, size: tuple[int, int]) -> str | None:
+    """Why the image does not decode to the size its header declares, or None. A header can survive the loss of
+    the image data, so the pixels are decoded."""
+    try:
+        from PIL import Image
+    except ImportError:
+        return "cannot be decoded here: run check_site.py under uv run --with pillow"
+    try:
+        with Image.open(io.BytesIO(data)) as im:
+            im.load()
+            if im.size != size:
+                return f"decodes to {im.size[0]} x {im.size[1]}, not the {size[0]} x {size[1]} it declares"
+    except (OSError, ValueError, SyntaxError) as exc:
+        return f"does not decode ({exc.__class__.__name__})"
+    return None
+
+
 def png_size(data: bytes) -> tuple[int, int] | None:
     if data[:8] != b"\x89PNG\r\n\x1a\n" or data[12:16] != b"IHDR":
         return None
@@ -1502,6 +1525,8 @@ def check_images() -> None:
             fail("images", f"docs/{rel} is cut short: it has no IEND chunk")
         elif size != want:
             fail("images", f"docs/{rel} is {size[0]} x {size[1]}; it must be {want[0] if want else '?'} x {want[1] if want else '?'}")
+        elif path.suffix in (".avif", ".jpg") and (problem := decode_problem(data, size)):
+            fail("images", f"docs/{rel} {problem}")
         if len(data) > MAX_IMAGE_BYTES:
             fail("images", f"docs/{rel} is {len(data)} bytes; the limit is {MAX_IMAGE_BYTES}")
 
@@ -1535,7 +1560,7 @@ def check_subsets(pages: list[str]) -> None:
         return
     from io import BytesIO
 
-    def meta(font: Any) -> tuple[list[tuple[str, float, float]], set[str], str, set[int]]:
+    def meta(font: "TTFont") -> tuple[list[tuple[str, float, float]], set[str], str, set[int]]:
         axes = [(a.axisTag, a.minValue, a.maxValue) for a in font["fvar"].axes] if "fvar" in font else []
         feats = {r.FeatureTag for t in ("GSUB", "GPOS") if t in font for r in font[t].table.FeatureList.FeatureRecord}
         name = font["name"].getDebugName(16) or font["name"].getDebugName(1) or ""
@@ -1661,6 +1686,22 @@ def load_deny(path: str | None) -> list[str]:
     return [name for name in names if name and not name.startswith("#")]
 
 
+def release_record_ok(record: object) -> bool:
+    return isinstance(record, dict) and all(isinstance(record.get(k), str) for k in ("tagName", "publishedAt", "url"))
+
+
+def repo_record_ok(record: object) -> bool:
+    """A repository record as fetch.py writes it: language, latest release, last commit, recent releases."""
+    if not isinstance(record, dict) or not isinstance(record.get("commit"), str):
+        return False
+    if not (record.get("lang") is None or isinstance(record.get("lang"), str)):
+        return False
+    if not (record.get("release") is None or release_record_ok(record.get("release"))):
+        return False
+    releases = record.get("releases")
+    return isinstance(releases, list) and all(release_record_ok(r) for r in releases)
+
+
 def load_data(path: str | None) -> None:
     """The GitHub facts: every repository of the three houses and the type families."""
     global DATA  # noqa: PLW0603
@@ -1675,6 +1716,12 @@ def load_data(path: str | None) -> None:
         missing = [f for f in fulls if f not in DATA["repos"]]
         if missing or set(DATA["families"]) != {"weft", "sans", "heddle", "warp"}:
             raise KeyError(missing[0] if missing else "families")
+        for full in fulls:
+            if not repo_record_ok(DATA["repos"][full]):
+                raise KeyError(f"{full} record")
+        for family, record in DATA["families"].items():
+            if not release_record_ok(record):
+                raise KeyError(f"{family} record")
     except (OSError, ValueError, KeyError, TypeError) as exc:
         print(f"FAIL args: the GitHub facts file {path} is missing or incomplete ({exc.__class__.__name__}: {exc})")
         sys.exit(2)
@@ -1692,6 +1739,8 @@ def run_checks(deny: list[str]) -> list[str]:
     for rel, rooted in (("index.html", False), ("404.html", True)):
         html_text = read(rel)
         if not html_text:
+            if (DOCS / rel).is_file():
+                fail("files", f"docs/{rel} is empty; run python3 build.py")
             continue
         pages.append(html_text)
         page = parse(html_text)
@@ -1902,6 +1951,9 @@ def self_test() -> None:
         ("private name in an html comment", "private", ["zzprivate"], lambda d: edit(d, "index.html", "<body>", "<body><!-- zzprivate -->")),
         ("private link", "links", [], lambda d: edit(d, "index.html", f"/{first}\"", "/zzprivate\"")),
         ("private rs name in llms.txt", "private", [], lambda d: edit(d, "llms.txt", "## Sites", "zz-rs\n\n## Sites")),
+        ("empty 404 page", "files", [], lambda d: (d / "404.html").write_text("", encoding="utf-8")),
+        ("AVIF cut in half", "images", [], lambda d: (p := d / "img" / f"{first}-704.avif").write_bytes(p.read_bytes()[: p.stat().st_size // 2])),
+        ("relative url in the 404 system style", "404", [], lambda d: edit(d, "404.html", "box-sizing: border-box;", "box-sizing: border-box; cursor: url(img/touch.png), auto;")),
         ("long project line", "voice", [], lambda d: edit(d, "index.html", '<p class="ds">', f'<p class="ds">{LONG} ')),
         ("long house line", "voice", [], lambda d: edit(d, "llms.txt", f"> {LINE}", f"> {LONG} {LINE}")),
         ("long line in llms.txt", "voice", [], lambda d: edit(d, "llms.txt", "## Sites", f"{LONG}\n\n## Sites")),
@@ -2260,6 +2312,8 @@ def self_test() -> None:
             {"nav": [*site["nav"][:3], {"name": "type", "url": TYPE_URL, "self": True}]},
             {"redirects": {"404.html": "https://example.net/x"}},
             {"redirects": {"llms.txt": "https://example.net/x"}},
+            {"groups": [{"title": "Latest", "nav": "A", "projects": [{"repo": first, "line": "y"}]}]},
+            {"groups": [{"title": "Houses", "nav": "A", "projects": [{"repo": first, "line": "y"}]}]},
         ]
         for changes in bad_sites:
             report(build_rejects(changes, data), f"build.py accepted {str(changes)[:60]}")
@@ -2285,9 +2339,38 @@ def self_test() -> None:
         report(cli_fails(["--data", DATA_PATH, "--site", missing], "FAIL args:"), "--site with no allow.json")
         report(cli_fails([], "FAIL args:"), "no GitHub facts file")
         report(cli_fails(["--data", str(broken)], "FAIL args:"), "a facts file that lacks a repository")
+        hollow = Path(tmp) / "hollow.json"
+        facts = json.loads(data.read_text(encoding="utf-8"))
+        facts["repos"][first_full] = {}
+        hollow.write_text(json.dumps(facts), encoding="utf-8")
+        report(cli_fails(["--data", str(hollow)], "FAIL args:"), "a facts file with an empty repository record")
+        report(cli_fails(["--data", DATA_PATH, "--self-test", "--site", str(GEN)], "FAIL args:"), "--self-test with --site")
+        stale = Path(tmp) / "stale"
+        stale.mkdir()
+        shutil.copy(ROOT / "allow.json", stale / "allow.json")
+        site_json = json.loads((ROOT / "site.json").read_text(encoding="utf-8"))
+        site_json["theme"]["accent"] = "#123456"
+        (stale / "site.json").write_text(json.dumps(site_json), encoding="utf-8")
+        report(cli_fails(["--data", DATA_PATH, "--site", str(stale)], "FAIL args:"), "site.json theme differs from allow.json")
+        report(other_rs_known(), "the check refuses the -rs repository of another house")
     if bad:
         sys.exit(1)
     print(f"SELF-TEST OK ({total} cases)")
+
+
+def other_rs_known() -> bool:
+    """A -rs repository of another house (named by the houses row) passes the leak check."""
+    global OTHERS  # noqa: PLW0603
+    real = OTHERS
+    name = next(iter(real))
+    OTHERS = {**real, name: (real[name][0], (*real[name][1], "zz/zz-other-rs"))}
+    try:
+        del failures[:]
+        check_leaks("zz-other-rs", [])
+        return not any("zz-other-rs" in f for f in failures)
+    finally:
+        OTHERS = real
+        del failures[:]
 
 
 def break_source(docs: Path) -> None:
@@ -2382,7 +2465,9 @@ def load_allow(folder: str) -> None:
         SITE_LINKS = {str(k): str(v) for k, v in allow.get("site_links", {}).items()}
         SITE_LABELS = {str(k): str(v) for k, v in allow.get("site_labels", {}).items()}
         REDIRECTS = {str(k): str(v) for k, v in allow.get("redirects", {}).items()}
-        site_owner = str(json.loads((root / "site.json").read_text(encoding="utf-8"))["owner"])
+        site_json = json.loads((root / "site.json").read_text(encoding="utf-8"))
+        site_owner = str(site_json["owner"])
+        site_theme = {k: str(site_json["theme"][k]) for k in (*THEME_KEYS, "face")}
         others = {}
         for path in [GEN / "allow.json", *sorted((GEN / "houses").glob("*/allow.json"))]:
             other = json.loads(path.read_text(encoding="utf-8"))
@@ -2394,6 +2479,9 @@ def load_allow(folder: str) -> None:
         sys.exit(2)
     if site_owner != OWNER:
         print(f"FAIL args: {folder}/allow.json owner {OWNER!r} differs from site.json owner {site_owner!r}")
+        sys.exit(2)
+    if site_theme != THEME:
+        print(f"FAIL args: {folder}/site.json theme differs from allow.json; set both, then run python3 build.py")
         sys.exit(2)
     if THEME["face"] not in FACES or SELF not in {n for n, _ in SITES}:
         print(f"FAIL args: {folder}/allow.json names a face or a current site that the checks do not know")
@@ -2413,6 +2501,10 @@ def load_allow(folder: str) -> None:
 def main() -> None:
     global DATA_PATH  # noqa: PLW0603
     args = parse_args(sys.argv[1:])
+    if args.self_test and args.site:
+        print("FAIL args: the self-test builds and breaks the generator's own site; run it without --site "
+              "(gate.sh then checks every house with --site)")
+        sys.exit(2)
     load_allow(args.site or str(GEN))
     load_data(args.data)
     DATA_PATH = str(Path(args.data or os.environ["MM_DATA"]).resolve())

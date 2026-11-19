@@ -24,9 +24,13 @@ import sys
 import tempfile
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import Any, NoReturn
+from typing import TYPE_CHECKING, Any, NoReturn
 
 import card
+
+if TYPE_CHECKING:
+    from fontTools.ttLib import TTFont
+    from PIL import Image
 
 ROOT = Path(__file__).resolve().parent
 # The site being built: its site.json and its docs/. --site DIR builds another house from this generator.
@@ -76,6 +80,8 @@ PLATE_SIZES = "(min-width: 1264px) 282px, (min-width: 1000px) 22vw, (min-width: 
 BANNER_SIZES = "(min-width: 1264px) 1200px, calc(100vw - 32px)"
 MONTHS = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split()
 NEVER = {"homebrew-tap"}
+# Ids of the built-in sections of every page; a group title may not take them (its id is g-<slug>).
+RESERVED_IDS = {"latest", "houses"}
 
 
 def fail(message: str, fix: str) -> NoReturn:
@@ -148,6 +154,8 @@ def load_site(path: Path) -> dict[str, Any]:
         need(group, "projects", list, where)
         if not slug(group["title"]) or slug(group["title"]) in slugs or not group["title"].isascii():
             fail(f"{where}.title gives no unique id", "Give each group its own title of ASCII letters and digits.")
+        if slug(group["title"]) in RESERVED_IDS:
+            fail(f"{where}.title {group['title']!r} takes the id of a built-in section", "Pick another title: Latest and the houses row are on every page.")
         if not printable_ascii(group["nav"]) or len(group["nav"]) > 12:
             fail(f"{where}.nav is not a short label", "Give each group a bar-2 label of at most 12 ASCII characters.")
         slugs.add(slug(group["title"]))
@@ -592,7 +600,7 @@ def face_text(page: str, face: str) -> set[str]:
     return parser.out
 
 
-def font_meta(font: Any) -> tuple[list[tuple[str, float, float]], set[str]]:
+def font_meta(font: "TTFont") -> tuple[list[tuple[str, float, float]], set[str]]:
     axes = [(a.axisTag, a.minValue, a.maxValue) for a in font["fvar"].axes] if "fvar" in font else []
     feats = {r.FeatureTag for t in ("GSUB", "GPOS") if t in font for r in font[t].table.FeatureList.FeatureRecord}
     return axes, feats
@@ -684,7 +692,7 @@ def images(site: dict[str, Any], others: dict[str, dict[str, Any]]) -> dict[str,
     og.save(buf, format="JPEG", quality=84, optimize=True, progressive=True)
     out["og.jpg"] = buf.getvalue()
 
-    def png(im: Any) -> bytes:
+    def png(im: "Image.Image") -> bytes:
         b = io.BytesIO()
         im.save(b, format="PNG", optimize=True)
         return b.getvalue()

@@ -36,3 +36,4 @@ In 1804 the Jacquard loom wove patterns read from punched cards. The pattern cam
 - [machine-made](https://machine-made.github.io/)
 - [openfluids](https://openfluids.github.io/)
 - [BoringQuantSystems](https://boringquantsystems.github.io/)
+- [type](https://machine-made.github.io/type/)

@@ -8,7 +8,7 @@
     "text": "#ecebe6",
     "muted": "#8b8b90",
     "accent": "#3ddc97",
-    "font": "EB Garamond"
+    "font": "machine-made Warp"
   },
   "sites": [
     [
@@ -22,6 +22,10 @@
     [
       "BoringQuantSystems",
       "https://boringquantsystems.github.io/"
+    ],
+    [
+      "type",
+      "https://machine-made.github.io/type/"
     ]
   ],
   "groups": [

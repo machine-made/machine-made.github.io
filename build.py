@@ -263,8 +263,9 @@ def page_html(site: dict[str, Any]) -> str:
         f'<span aria-current="page">{esc(t["name"])}</span>' if t.get("self") else f'<a href="{esc(t["url"])}">{esc(t["name"])}</a>'
         for t in site["nav"]
     )
-    # The footer reads as one line: the same four names as the top bar, each a link, joined by dots.
-    footer = " &middot; ".join(f'<a href="{esc(t["url"])}">{esc(t["name"])}</a>' for t in site["nav"])
+    # The footer reads as one line: the same four names as the top bar, each a link. The style draws the dot
+    # after each link but the last, so a dot never wraps away from its name.
+    footer = " ".join(f'<a href="{esc(t["url"])}">{esc(t["name"])}</a>' for t in site["nav"])
     home = next(t["url"] for t in site["nav"] if t.get("self"))
     social = "\n".join(
         f'<meta {attr}="{key}" content="{esc(value)}">'

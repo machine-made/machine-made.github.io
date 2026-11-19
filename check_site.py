@@ -232,6 +232,7 @@ class Page(HTMLParser):
         self.ids: list[str] = []
         self.links: list[Attrs] = []
         self.imgs: list[Attrs] = []
+        self.metas: list[Attrs] = []
         self.tags: list[str] = []
         self.text: list[str] = []
         self.values: list[str] = []
@@ -271,6 +272,8 @@ class Page(HTMLParser):
                 self.first_link = a
         if tag == "link" and "href" in a:
             self.links.append({"href": a["href"], "rel": a.get("rel") or "", "tag": "link"})
+        if tag == "meta":
+            self.metas.append(a)
         if tag == "img":
             self.imgs.append(a)
             if self.heading is not None:
@@ -466,7 +469,7 @@ def check_html(page: Page, html_text: str, name: str | None) -> None:
     shown = site_title(name)
     if shown and ("h1", shown) not in page.headings:
         fail("content", f"the h1 must be the site name, {shown}")
-    check_head(html_text, shown)
+    check_head(page, html_text, shown)
     for faux in FAUX_TAGS:
         if faux in page.tags:
             fail("fonts", f"<{faux}> sets bold or italic by itself; the page uses no bold and no italic")
@@ -509,29 +512,30 @@ def check_html(page: Page, html_text: str, name: str | None) -> None:
                 fail("links", f"{href} does not resolve inside docs/")
 
 
-def meta_values(html_text: str, attr: str, key: str) -> list[str]:
-    return [html.unescape(v) for v in re.findall(rf'<meta {attr}="{re.escape(key)}" content="([^"]*)">', html_text)]
+def meta_values(page: Page, attr: str, key: str) -> list[str]:
+    """The content of every <meta> whose attribute attr is key, whatever the order of its attributes."""
+    return [a.get("content") or "" for a in page.metas if a.get(attr) == key]
 
 
-def check_head(html_text: str, shown: str | None) -> None:
+def check_head(page: Page, html_text: str, shown: str | None) -> None:
     """The head: title, description, favicon, and the social preview that uses the org banner."""
     title = re.search(r"<title>([^<]+)</title>", html_text)
     if shown and (not title or html.unescape(title.group(1)) != shown):
         fail("head", f"the title must be the site name, {shown}")
-    if meta_values(html_text, "name", "description") != [LINE]:
+    if meta_values(page, "name", "description") != [LINE]:
         fail("head", "the description meta must be the org line, word for word")
     if '<link rel="icon" href="mark.svg" type="image/svg+xml">' not in html_text:
         fail("head", "the page needs its favicon: <link rel=\"icon\" href=\"mark.svg\" type=\"image/svg+xml\">")
     home = next((u for n, u in SITES if n == SELF), "")
     expected = {
         "og:type": "website", "og:title": shown or "", "og:description": LINE, "og:url": home,
-        "og:image": f"{home}img/banner.jpg", "og:image:width": str(BANNER_SIZE[0]),
+        "og:image": f"{home.rstrip('/')}/img/banner.jpg", "og:image:width": str(BANNER_SIZE[0]),
         "og:image:height": str(BANNER_SIZE[1]), "og:image:alt": shown or "",
     }
     for key, value in expected.items():
-        if meta_values(html_text, "property", key) != [value]:
+        if meta_values(page, "property", key) != [value]:
             fail("head", f"the social preview meta {key} must be {value!r}; og:image is the org banner")
-    if meta_values(html_text, "name", "twitter:card") != ["summary_large_image"]:
+    if meta_values(page, "name", "twitter:card") != ["summary_large_image"]:
         fail("head", "the twitter:card meta must be summary_large_image")
 
 
@@ -624,8 +628,8 @@ def check_font_files(html_text: str) -> None:
         href = re.search(r'\bhref="([^"]*)"', tag)
         target = href.group(1) if href else ""
         hrefs.append(target)
-        if target not in {f"fonts/{stem}.woff2" for name in wanted for stem, _, _, _ in FONT_SPECS[name][0]}:
-            fail("fonts", f"the page preloads {target[:50]!r}, which is not a font of the house")
+        if target not in {f"fonts/{FONT_SPECS[name][0][0][0]}.woff2" for name in wanted}:
+            fail("fonts", f"the page preloads {target[:50]!r}, which is not the regular face of a font of the house")
         if 'as="font"' not in tag or 'type="font/woff2"' not in tag or not re.search(r"\bcrossorigin\b", tag):
             fail("fonts", f"the preload of {target[:50]!r} needs as=\"font\", type=\"font/woff2\" and crossorigin")
     if f"fonts/{text_stem()}.woff2" not in hrefs:
@@ -643,10 +647,13 @@ def check_font_use(css: str, found: dict[str, str]) -> None:
         for fam in family_names(found.get(key, "")):
             if fam not in FONT_SPECS and fam not in GENERIC_FAMILIES:
                 fail("fonts", f"--{key} names the font family {fam!r}; only machine-made fonts and generic families are allowed")
-    italic_ok = any(face[2] == "italic" for face in FONT_SPECS[THEME["font"]][0])
     for _, selector, decls in css_rules(css):
         if selector.startswith("@font-face") or ":root" in selector:
             continue
+        # The family a rule selects: Weft through var(--mono), else the text font of the house. A rule that
+        # sets italic needs an italic face in that family.
+        family = WEFT if re.search(r"var\(\s*--mono\s*\)", decls.get("font-family", "") + decls.get("font", "")) else THEME["font"]
+        italic_ok = any(face[2] == "italic" for face in FONT_SPECS[family][0])
         for prop in ("font-family", "font"):
             if prop in decls and not re.search(r"var\(\s*--(?:font|mono)\s*\)", decls[prop]):
                 fail("fonts", f"{selector[:40]} sets {prop}: {decls[prop][:30]!r}; use var(--font) or var(--mono)")
@@ -656,7 +663,7 @@ def check_font_use(css: str, found: dict[str, str]) -> None:
             fail("fonts", f"{selector[:40]} sets font-weight {weight}; the page loads no bold face, so it sets none")
         style = decls.get("font-style") or next((t for t in tokens if t in ("italic", "oblique")), "normal")
         if style not in ("normal", "inherit") and not (italic_ok and style == "italic"):
-            fail("fonts", f"{selector[:40]} sets font-style {style}; this house loads no italic face")
+            fail("fonts", f"{selector[:40]} sets font-style {style}; {family} loads no italic face")
     labels = [d for _, s, d in css_rules(css) if ".lbl" in s.split(",")[0] and "font" in d]
     if not labels or not re.search(r"(?<![\w.-])400(?![\w.-])", labels[0]["font"]):
         fail("fonts", "the group label (h2) must set font-weight 400, or the browser draws it bold")
@@ -709,7 +716,7 @@ def plate_html(full: str, line: str | None = None) -> re.Pattern[str]:
     more = ""
     if full in SITE_LINKS:
         label = SITE_LABELS.get(full, "site")
-        more = rf' <a class="nm" href="{re.escape(SITE_LINKS[full])}" aria-label="{re.escape(repo)} {label}">{label}</a>'
+        more = rf' <a class="nm" href="{re.escape(html.escape(SITE_LINKS[full]))}" aria-label="{re.escape(repo)} {label}">{label}</a>'
     return re.compile(
         rf'<li class="plate"><a class="pic" href="{url}" aria-label="{re.escape(repo)}">{img}</a>'
         rf'<span class="ds">{text}{more}</span></li>'
@@ -1293,24 +1300,32 @@ def cli_fails(args: list[str], prefix: str) -> bool:
 
 
 def site_links_hold() -> list[str]:
+    """The site-link fixture for a plain address and for one with a query string, which the page writes with &amp;."""
+    return [
+        *site_link_fixture("https://machine-made.github.io/zz-site/"),
+        *site_link_fixture("https://example.net/docs/?a=1&b=2"),
+    ]
+
+
+def site_link_fixture(url: str) -> list[str]:
     """Build a site with one more project site link and run the checks on it: it passes, and each way
     of breaking the link fails. The checks read the link from the public list, so the list changes too."""
     global DOCS, SITE_LINKS
     real_docs, real_links = DOCS, SITE_LINKS
     full = next(f for f in repos_of() if f not in real_links)
-    repo, url = full.split("/")[1], "https://machine-made.github.io/zz-site/"
+    repo, eurl = full.split("/")[1], html.escape(url)
     problems: list[str] = []
     data = json.loads((ROOT / "site.json").read_text(encoding="utf-8"))
     next(p for g in data["groups"] for p in g["projects"] if p["repo"] == repo)["site"] = url
-    link = f' <a class="nm" href="{url}" aria-label="{repo} site">site</a>'
+    link = f' <a class="nm" href="{eurl}" aria-label="{repo} site">site</a>'
     breaks: list[tuple[str, Callable[[Path], object]]] = [
         ("site link missing", lambda d: edit(d, "index.html", link, "")),
-        ("site link on another host", lambda d: edit(d, "index.html", url, "https://example.net/zz-site/")),
-        ("site link to another path", lambda d: edit(d, "index.html", url, "https://machine-made.github.io/other/")),
-        ("second site link", lambda d: edit(d, "index.html", "</ul>", f'<li><a class="nm" href="{url}">x</a></li></ul>')),
+        ("site link on another host", lambda d: edit(d, "index.html", eurl, "https://example.net/zz-site/")),
+        ("site link to another path", lambda d: edit(d, "index.html", eurl, "https://machine-made.github.io/other/")),
+        ("second site link", lambda d: edit(d, "index.html", "</ul>", f'<li><a class="nm" href="{eurl}">x</a></li></ul>')),
         ("site link says docs but the list says site", lambda d: edit(d, "index.html", f'aria-label="{repo} site">site</a>', f'aria-label="{repo} docs">docs</a>')),
         ("site link without its accessible name", lambda d: edit(d, "index.html", f' aria-label="{repo} site"', "")),
-        ("site link on the banner", lambda d: edit(d, "index.html", f'<a class="pic" href="https://github.com/{full}" aria-label=', f'<a class="pic" href="{url}" aria-label=')),
+        ("site link on the banner", lambda d: edit(d, "index.html", f'<a class="pic" href="https://github.com/{full}" aria-label=', f'<a class="pic" href="{eurl}" aria-label=')),
         ("linked banner without an accessible name", lambda d: edit(d, "index.html", f'class="pic" href="https://github.com/{full}" aria-label="{repo}"', f'class="pic" href="https://github.com/{full}"')),
     ]
     with tempfile.TemporaryDirectory() as tmp:
@@ -1327,7 +1342,7 @@ def site_links_hold() -> list[str]:
                 found = run_checks([])
                 caught = not found if title == "clean fixture" else any(line.startswith(("FAIL links:", "FAIL projects:")) for line in found)
                 if not caught:
-                    problems.append(f"site-link fixture, {title}: got {found[:2]}")
+                    problems.append(f"site-link fixture {url}, {title}: got {found[:2]}")
         finally:
             DOCS, SITE_LINKS = real_docs, real_links
     return problems
@@ -1412,6 +1427,17 @@ def self_test() -> None:
         ("the group label loses its weight", "fonts", [], lambda d: edit(d, "style.css", "font: 400 0.71875rem / 1 var(--mono);\n  letter-spacing: 0.08em;", "font: 0.71875rem / 1 var(--mono);\n  letter-spacing: 0.08em;")),
         ("a bold tag", "fonts", [], lambda d: edit(d, "index.html", "<body>", "<body><b>x</b>")),
         ("an italic tag", "fonts", [], lambda d: edit(d, "index.html", "<body>", "<body><em>x</em>")),
+        *(
+            [
+                ("the italic face is preloaded", "fonts", [], lambda d: edit(d, "index.html", STYLE_LINK, '<link rel="preload" href="fonts/mm-warp-italic.woff2" as="font" type="font/woff2" crossorigin>\n' + STYLE_LINK)),
+                ("italic through the Weft variable", "fonts", [], lambda d: edit(d, "style.css", "box-sizing", "box-sizing:border-box}.zz{font:400 1rem var(--mono);font-style:italic;margin")),
+                ("italic of the house font is allowed", None, [], lambda d: edit(d, "style.css", "box-sizing", "box-sizing:border-box}.zz{font-style:italic;margin")),
+            ]
+            if italic_ok
+            else []
+        ),
+        ("a second og:image with content first", "head", [], lambda d: edit(d, "index.html", "</head>", '<meta content="https://example.net/x.jpg" property="og:image">\n</head>')),
+        ("a second description", "head", [], lambda d: edit(d, "index.html", "</head>", '<meta content="Other." name="description">\n</head>')),
         ("the main text font is not preloaded", "fonts", [], lambda d: edit(d, "index.html", f'<link rel="preload" href="fonts/{font_stem}.woff2" as="font" type="font/woff2" crossorigin>\n', "")),
         ("the font file is not the 0.2.0 file", "fonts", [], lambda d: (d / "fonts" / f"{font_stem}.woff2").write_bytes(b"wOF2" + (d / "fonts" / f"{font_stem}.woff2").read_bytes()[4:] + b"\x00")),
         ("the type scale changed", "scale", [], lambda d: edit(d, "style.css", f"--fs:{SIZE / 16:g}rem", "--fs:1.125rem")),
@@ -1642,7 +1668,7 @@ def self_test() -> None:
             {"theme": {**json.loads((ROOT / "site.json").read_text(encoding="utf-8"))["theme"], "font": "Comic Sans"}},
             {"nav": []},
             {"nav": ["machine-made"]},
-            {"nav": [{k: v for k, v in n.items()} for n in json.loads((ROOT / "site.json").read_text(encoding="utf-8"))["nav"][:3]]},
+            {"nav": [dict(n) for n in json.loads((ROOT / "site.json").read_text(encoding="utf-8"))["nav"][:3]]},
             {"nav": [*json.loads((ROOT / "site.json").read_text(encoding="utf-8"))["nav"][:3], {"name": "type", "url": "https://example.net/type/"}]},
             {"nav": [*json.loads((ROOT / "site.json").read_text(encoding="utf-8"))["nav"][:3], {"name": "type", "url": TYPE_URL, "self": True}]},
             {"redirects": {"style.css": "https://example.net/x"}},

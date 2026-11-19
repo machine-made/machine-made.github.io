@@ -10,7 +10,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Any, NoReturn
+from typing import Any, NoReturn, TypedDict
 
 import card
 
@@ -43,7 +43,16 @@ SIZE, LINE_SIZE = 16, 24
 # family -> faces (file stem, font-weight, font-style), licence file, font stack (generic fallbacks only), and the
 # word spacing of reading text (Sans has a narrow word space).
 WEFT, SANS, WARP = "machine-made Weft", "machine-made Sans", "machine-made Warp"
-FAMILIES: dict[str, dict[str, Any]] = {
+
+
+class Family(TypedDict):
+    faces: tuple[tuple[str, str, str], ...]
+    licence: str
+    stack: str
+    spacing: str
+
+
+FAMILIES: dict[str, Family] = {
     WEFT: {
         "faces": (("mm-weft", "100 900", "normal"),), "licence": "mm-weft-OFL.txt",
         "stack": '"machine-made Weft", ui-monospace, monospace', "spacing": "normal",
@@ -263,7 +272,7 @@ def page_html(site: dict[str, Any]) -> str:
             ("property", "og:title", shown),
             ("property", "og:description", site["line"]),
             ("property", "og:url", home),
-            ("property", "og:image", f"{home}img/banner.jpg"),
+            ("property", "og:image", f"{home.rstrip('/')}/img/banner.jpg"),
             ("property", "og:image:width", str(BANNER_SIZE[0])),
             ("property", "og:image:height", str(BANNER_SIZE[1])),
             ("property", "og:image:alt", shown),

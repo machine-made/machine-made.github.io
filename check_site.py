@@ -685,6 +685,9 @@ def check_scale_and_touch(css: str, found: dict[str, str]) -> None:
         narrow = [d for c, s, d in rules if s == selector and any("(max-width:720px)" in cond for cond in c)]
         if not narrow or narrow[0].get("min-height") != "44px":
             fail("touch", f"{selector} must be at least 44px high below 720px")
+    dots = [d for c, s, d in rules if s == "footer a:not(:last-child)::after" and not c]
+    if not dots or dots[0].get("content") != '""' or "var(--muted)" not in dots[0].get("background", ""):
+        fail("touch", "the footer draws the dot after each link but the last in the style, so a dot never wraps alone")
     hover = [d for c, s, d in rules if s == ".pic:hover img" and any("(hover:hover)" in cond for cond in c)]
     if not any("outline-color" in d for d in hover):
         fail("hover", "a plate image must show its hover state without motion: .pic:hover img sets outline-color")
@@ -737,9 +740,9 @@ def check_content(page: Page, html_text: str) -> str:
     )
     if expected_duo not in html_text:
         fail("content", "the org line and the paragraph on the name must sit side by side, word for word as allow.json has them")
-    expected_footer = " &middot; ".join(f'<a href="{html.escape(u)}">{html.escape(n)}</a>' for n, u in SITES)
+    expected_footer = " ".join(f'<a href="{html.escape(u)}">{html.escape(n)}</a>' for n, u in SITES)
     if f'<footer class="wrap">\n<p>{expected_footer}</p>\n</footer>' not in html_text:
-        fail("content", f"the footer must link {' · '.join(n for n, _ in SITES)}, in that order, joined by dots")
+        fail("content", f"the footer must link {' · '.join(n for n, _ in SITES)}, in that order, and nothing else")
     order = [html_text.find(m) for m in ('class="bar"', 'class="banner"', 'class="duo"', 'class="grid"', "<footer")]
     if -1 in order or order != sorted(order):
         fail("content", "the page order is: top bar, banner, line and name, projects, footer")
@@ -809,10 +812,8 @@ def decoded(source: str) -> str:
 def check_leaks(visible: str, deny: list[str]) -> None:
     forwards = {f"{folder}/index.html": url.split("//", 1)[1] for folder, url in REDIRECTS.items()}
     for name, raw in emitted(visible):
-        # Files are plain ASCII. The one character beyond ASCII that a reader sees is the dot of the footer
-        # line, which the file spells as &middot;.
-        shown = raw.replace(" · ".join(n for n, _ in SITES), "") if name == "index.html" else raw
-        if not shown.isascii():
+        # Files are plain ASCII.
+        if not raw.isascii():
             fail("voice", f"docs/{name} has characters that are not plain ASCII")
         if name != "index.html" and not raw.isascii():
             continue
@@ -831,7 +832,7 @@ def check_leaks(visible: str, deny: list[str]) -> None:
                 fail("private", f"a private name appears in docs/{name} ({len(word)} letters)")
     raw_page = (DOCS / "index.html").read_text(encoding="utf-8", errors="replace") if (DOCS / "index.html").is_file() else ""
     if not raw_page.isascii():
-        fail("voice", "docs/index.html has characters that are not plain ASCII; spell the dot as &middot;")
+        fail("voice", "docs/index.html has characters that are not plain ASCII")
     for path in DOCS.rglob("*"):
         for word in deny:
             if path.is_file() and re.search(re.escape(word), path.name, re.I):
@@ -1485,17 +1486,18 @@ def self_test() -> None:
         ("old hero comes back", "files", [], lambda d: (d / "heroes").mkdir() or (d / "heroes" / "x.svg").write_text("<svg/>")),
         ("non-ASCII in llms.txt", "voice", [], lambda d: edit(d, "llms.txt", "## Sites", "café\n\n## Sites")),
         ("non-ASCII in the page", "voice", [], lambda d: edit(d, "index.html", "<body>", "<body>café")),
-        ("the footer dot written raw", "voice", [], lambda d: edit(d, "index.html", "&middot;", "·")),
+        ("a dot written in the footer", "voice", [], lambda d: edit(d, "index.html", "</p>\n</footer>", "·</p>\n</footer>")),
+        ("a dot written in the footer as text", "content", [], lambda d: edit(d, "index.html", "</a> <a", "</a> &middot; <a")),
         ("the top bar loses a site", "content", [], lambda d: edit(d, "index.html", f'<a href="{nav_other}">{other_name}</a>\n', "")),
         ("the top bar marks another site", "content", [], lambda d: edit_all(d, "index.html", (f'<span aria-current="page">{SELF}</span>', f'<a href="{self_url}">{SELF}</a>'), (f'<a href="{nav_other}">{other_name}</a>', f'<span aria-current="page">{other_name}</span>'))),
         ("the current site links to itself", "content", [], lambda d: edit(d, "index.html", f'<span aria-current="page">{SELF}</span>', f'<a href="{self_url}" aria-current="page">{SELF}</a>')),
         ("the current site is not marked", "content", [], lambda d: edit(d, "index.html", f'<span aria-current="page">{SELF}</span>', f"<span>{SELF}</span>")),
         ("two entries are marked", "a11y", [], lambda d: edit(d, "index.html", f'<a href="{nav_other}">{other_name}</a>', f'<a href="{nav_other}" aria-current="page">{other_name}</a>')),
         ("a site linked twice", "links", [], lambda d: edit(d, "index.html", "</footer>", f'<a href="{nav_other}">x</a></footer>')),
-        ("the footer loses the type link", "content", [], lambda d: edit(d, "index.html", f' &middot; <a href="{TYPE_URL}">type</a></p>', "</p>")),
-        ("the footer is plain text again", "content", [], lambda d: edit(d, "index.html", re.search(r"<footer.*?</footer>", read_index(d), re.S).group(0), '<footer class="wrap">\n<p>' + " &middot; ".join(n for n, _ in SITES) + "</p>\n</footer>")),
-        ("the footer lists type first", "content", [], lambda d: edit_all(d, "index.html", (f' &middot; <a href="{TYPE_URL}">type</a></p>', "</p>"), ("<footer class=\"wrap\">\n<p>", f'<footer class="wrap">\n<p><a href="{TYPE_URL}">type</a> &middot; '))),
-        ("the footer type link goes elsewhere", "content", [], lambda d: edit(d, "index.html", f' &middot; <a href="{TYPE_URL}">type</a></p>', ' &middot; <a href="https://machine-made.github.io/fonts/">type</a></p>')),
+        ("the footer loses the type link", "content", [], lambda d: edit(d, "index.html", f' <a href="{TYPE_URL}">type</a></p>', "</p>")),
+        ("the footer is plain text again", "content", [], lambda d: edit(d, "index.html", footer_html(d), '<footer class="wrap">\n<p>' + " ".join(n for n, _ in SITES) + "</p>\n</footer>")),
+        ("the footer lists type first", "content", [], lambda d: edit_all(d, "index.html", (f' <a href="{TYPE_URL}">type</a></p>', "</p>"), ("<footer class=\"wrap\">\n<p>", f'<footer class="wrap">\n<p><a href="{TYPE_URL}">type</a> '))),
+        ("the footer type link goes elsewhere", "content", [], lambda d: edit(d, "index.html", f' <a href="{TYPE_URL}">type</a></p>', ' <a href="https://machine-made.github.io/fonts/">type</a></p>')),
         ("a footer link without its site", "links", [], lambda d: edit(d, "index.html", "</footer>", f'<a href="{self_url}">x</a></footer>')),
         ("the type link is missing", "content", [], lambda d: edit(d, "index.html", f'<a href="{TYPE_URL}">type</a>\n', "")),
         ("the type link goes elsewhere", "content", [], lambda d: edit(d, "index.html", f'<a href="{TYPE_URL}">type</a>', '<a href="https://machine-made.github.io/fonts/">type</a>')),
@@ -1519,7 +1521,8 @@ def self_test() -> None:
         ("org line missing in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", f"> {LINE}", "> ")),
         ("name paragraph missing in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", f"{BLURB}\n\n", "")),
         ("old footer text", "content", [], lambda d: edit(d, "index.html", "<footer class=\"wrap\">\n<p>", "<footer class=\"wrap\">\n<p>An open-source workshop. ")),
-        ("footer line changed", "content", [], lambda d: edit(d, "index.html", "</a> &middot; <a", "</a> &middot; x &middot; <a")),
+        ("footer line changed", "content", [], lambda d: edit(d, "index.html", "</a> <a", "</a> x <a")),
+        ("the footer dot is dropped from the style", "touch", [], lambda d: edit(d, "style.css", "footer a:not(:last-child)::after {", "footer a:last-child::after {")),
         ("page order changed", "content", [], move_footer_up),
         ("sites missing in llms.txt", "llms", [], lambda d: edit(d, "llms.txt", "## Sites", "## Elsewhere")),
         ("a group heading is renamed", "projects", [], lambda d: edit(d, "index.html", f">{GROUPS[0][0]}</h2>", ">Tools</h2>")),
@@ -1696,6 +1699,14 @@ def self_test() -> None:
     if bad:
         sys.exit(1)
     print(f"SELF-TEST OK ({total} cases)")
+
+
+def footer_html(docs: Path) -> str:
+    """The footer element of docs/index.html as written."""
+    found = re.search(r"<footer.*?</footer>", read_index(docs), re.S)
+    if found is None:
+        raise AssertionError("self-test is stale: no footer in docs/index.html")  # noqa: TRY003
+    return found.group(0)
 
 
 def move_footer_up(docs: Path) -> None:

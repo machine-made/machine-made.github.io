@@ -18,6 +18,7 @@ every link is at least 44 px high.
 import argparse
 import json
 import sys
+from itertools import pairwise
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright
@@ -91,7 +92,7 @@ def plate_problems(plates: list[list[float]]) -> list[str]:
         rows.setdefault(round(plate[1]), []).append(plate)
     for row in rows.values():
         row.sort()
-        gaps |= {round(b[0] - (a[0] + a[2]), 1) for a, b in zip(row, row[1:])}
+        gaps |= {round(b[0] - (a[0] + a[2]), 1) for a, b in pairwise(row)}
     if len(gaps) > 1:
         problems.append(f"gaps between plate images differ: {sorted(gaps)}")
     return problems

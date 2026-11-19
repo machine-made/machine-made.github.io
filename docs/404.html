@@ -65,8 +65,9 @@ a { color: inherit; text-decoration: none; }
 .secs [aria-current]::after { content: ""; position: absolute; left: 0; right: 0; bottom: var(--sp-2); height: 2px; background: var(--accent); }
 @media (max-width: 719px) {
   .b1 ul { flex-wrap: wrap; height: auto; column-gap: var(--sp-4); row-gap: 0; padding-block: var(--sp-1); overflow: visible; }
-  .b1 li { height: var(--sp-6); }
-  :root { --b1h: 73px; }
+  .b1 li { height: 44px; }
+  :root { --b1h: 97px; }
+  .logo { min-height: 44px; }
   .secs { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - var(--sp-6)), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - var(--sp-6)), transparent); padding-right: var(--sp-6); }
   .b2 .wrap { justify-content: flex-start; gap: var(--sp-4); }
   .secs { gap: var(--sp-4); }
@@ -135,6 +136,7 @@ a.u, .ds a { color: var(--text); text-decoration: underline 1px var(--accent); t
 @media (max-width: 519px) {
   .latest, .latest.n1, .latest.n2, .latest.n4 { grid-template-columns: minmax(0, 1fr); gap: 0; border-top: 1px solid var(--line); }
   .latest li, .latest.n1 li { grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: var(--sp-4); padding-block: var(--sp-3); border-bottom: 1px solid var(--line); }
+  .latest a { padding-block: var(--sp-3); margin-block: calc(-1 * var(--sp-3)); }
 }
 footer { margin-top: var(--sp-8); padding-bottom: max(var(--sp-6), env(safe-area-inset-bottom)); }
 footer .fl { padding-top: var(--sp-4); border-top: 1px solid var(--line); overflow: hidden; }
@@ -143,7 +145,6 @@ footer li { display: inline-flex; align-items: center; }
 footer li::before { content: "\00b7"; width: var(--sp-6); text-align: center; }
 footer a { display: inline-flex; align-items: center; min-height: 44px; }
 @media (hover: hover) { footer a:hover { color: var(--text); } }
-@media (max-width: 719px) { footer a { min-height: var(--sp-6); } }
 .tester { display: grid; gap: 0; }
 .trow { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--gutter); padding-block: var(--sp-4); border-bottom: 1px solid var(--line); }
 .trow:first-child { padding-top: 0; }

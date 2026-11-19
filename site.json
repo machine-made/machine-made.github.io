@@ -8,9 +8,7 @@
     "text": "#ecebe6",
     "muted": "#8b8b90",
     "accent": "#e5251c",
-    "font": "machine-made Weft",
-    "size": 14,
-    "line_size": 22
+    "font": "machine-made Weft"
   },
   "nav": [
     {
@@ -25,6 +23,10 @@
     {
       "name": "BoringQuantSystems",
       "url": "https://boringquantsystems.github.io/"
+    },
+    {
+      "name": "type",
+      "url": "https://machine-made.github.io/type/"
     }
   ],
   "groups": [

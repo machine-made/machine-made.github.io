@@ -2,7 +2,7 @@
 # The gate: deterministic build, self-tests, site checks, forbidden words.
 # Prints DETERMINISTIC, SELF-TEST OK, OK and "grep clean"; any failure exits 1.
 # MM_DENY_FILE=FILE (outside this repository) also rejects the names listed in FILE.
-# MM_FONTS=DIR (the site fonts, fonts/ in this repository; needs Playwright, fontTools and brotli)
+# MM_FONTS=DIR (the fonts brand.py draws from, brand-fonts/ in this repository; needs Playwright, fontTools and brotli)
 # also builds brand/ twice, compares the hashes and compares the result with the brand/ in this
 # repository.
 set -eu

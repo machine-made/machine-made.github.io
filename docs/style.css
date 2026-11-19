@@ -241,7 +241,8 @@ footer {
   color: var(--muted);
 }
 
-/* The footer line: the four links and the dots between them, set like the top bar. */
+/* The footer line: the four links, set like the top bar. Each link but the last draws a dot after its name,
+   so a dot stays on the line of the name it follows. */
 footer p {
   display: flex;
   flex-wrap: wrap;
@@ -252,7 +253,16 @@ footer p {
 footer a {
   display: inline-flex;
   align-items: center;
+  gap: 0.5em;
   padding-block: 6px;
+}
+
+footer a:not(:last-child)::after {
+  content: "";
+  width: 3px;
+  height: 3px;
+  background: var(--muted);
+  border-radius: 50%;
 }
 
 /* Hover effects only for pointers that hover. Motion only when the reader has not asked for less. */

@@ -230,7 +230,6 @@ a:focus-visible {
     align-items: center;
     width: fit-content;
     min-height: 44px;
-    margin-block: -14px;
   }
 }
 

@@ -1,0 +1,9 @@
+{
+ "note": "The source font files of the house sites: the release files of machine-made/type, unchanged. build.py cuts a subset of each for each page; check_site.py checks every hash here.",
+ "fonts": {
+  "mm-weft.woff2": {"family": "machine-made Weft", "version": "0.2.0", "release": "weft-v0.2.0", "asset": "MachineMadeWeft.FRAG.wght.woff2", "bytes": 77208, "sha256": "9115be68c727ae8c707eed1097f878fd7e7bd54fa75bd70b099e94e4e5e71e85", "licence": "mm-weft-OFL.txt"},
+  "mm-sans.woff2": {"family": "machine-made Sans", "version": "0.2.0", "release": "sans-v0.2.0", "asset": "MachineMadeSans.wght.woff2", "bytes": 73236, "sha256": "8ec52cf1b8a799dcda3aab4cf967d681cbd8bffd3f4cb581ed4e5ffa72e0864e", "licence": "mm-sans-OFL.txt"},
+  "mm-heddle.woff2": {"family": "machine-made Heddle", "version": "0.2.0", "release": "heddle-v0.2.0", "asset": "MachineMadeHeddle.wdth.wght.woff2", "bytes": 77600, "sha256": "3f7d0bde0d436dc800abc9b9c760938f38f19c627cc3378bb199032c3a6ec0e1", "licence": "mm-heddle-OFL.txt"},
+  "mm-warp-regular.woff2": {"family": "machine-made Warp", "version": "0.2.0", "release": "warp-v0.2.0", "asset": "MachineMadeWarp-Regular.woff2", "bytes": 82732, "sha256": "035042b467e6c138666b2e6b3b3a38eeb8d6dc3602ac4354f1e335e425101481", "licence": "mm-warp-OFL.txt"}
+ }
+}

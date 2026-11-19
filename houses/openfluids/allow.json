@@ -2,13 +2,14 @@
   "owner": "openfluids",
   "self": "openfluids",
   "line": "Open tools for fluid flows: state-of-the-art methods, ultra-modern low-memory code, for humans and agents.",
-  "blurb": "Open code for fluid mechanics.",
   "theme": {
     "ground": "#0d1116",
+    "surface": "#141a21",
+    "line": "#252c33",
     "text": "#e6eef2",
     "muted": "#8395a0",
     "accent": "#5cc8d6",
-    "font": "machine-made Sans"
+    "face": "heddle"
   },
   "sites": [
     [

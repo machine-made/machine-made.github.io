@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Not found &ndash; machine-made</title><meta name="description" content="A home-built, asynchronous factory for scientific software."><meta name="color-scheme" content="dark"><meta name="theme-color" content="#0a0a0b"><link rel="icon" href="/mark.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/img/touch.png"><meta property="og:type" content="website"><meta property="og:title" content="machine-made"><meta property="og:description" content="A home-built, asynchronous factory for scientific software."><meta property="og:url" content="https://machine-made.github.io/"><meta property="og:image" content="https://machine-made.github.io/og.jpg"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="machine-made"><meta name="twitter:card" content="summary_large_image"><link rel="preload" href="/fonts/weft.woff2" as="font" type="font/woff2" crossorigin><style>@font-face{font-family:"mm Weft";src:url(/fonts/weft.woff2) format("woff2");font-weight:100 900;font-style:normal;font-display:swap}@font-face{font-family:"mm Sans";src:url(/fonts/sans.woff2) format("woff2");font-weight:200 800;font-style:normal;font-display:swap}
+:root{--ground:#0a0a0b;--surface:#141416;--line:#26262a;--text:#ecebe6;--muted:#8b8b90;--accent:#e5251c}</style><style>:root {
+  --step--1: 0.8rem;
+  --step-0: 1rem;
+  --step-1: 1.25rem;
+  --step-2: 1.5625rem;
+  --step-3: 1.953rem;
+  --step-4: 2.441rem;
+  --step-5: 3.052rem;
+  --t-line: clamp(1.5625rem, 1.391rem + 0.702vw, 1.953rem);
+  --t-display: clamp(1.953rem, 1.472rem + 1.975vw, 3.052rem);
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 32px; --sp-7: 48px; --sp-8: 64px; --sp-9: 96px;
+  --side: var(--sp-4);
+  --gutter: var(--sp-5);
+  --max: 1200px;
+  --bar1: 40px;
+  --bar2: 64px;
+  --b1h: 41px;
+  --f-weft: "mm Weft", ui-monospace, monospace;
+  --f-sans: "mm Sans", system-ui, sans-serif;
+  --f-heddle: "mm Heddle", "mm Sans", system-ui, sans-serif;
+  --f-warp: "mm Warp", serif;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+}
+@media (min-width: 720px) { :root { --side: var(--sp-5); } }
+@media (min-width: 1100px) { :root { --side: var(--sp-6); } }
+*, *::before, *::after { box-sizing: border-box; }
+html { color-scheme: dark; background: var(--ground); -webkit-text-size-adjust: 100%; text-size-adjust: 100%; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; scroll-padding-block-start: calc(var(--bar2) + var(--sp-4)); }
+body { margin: 0; min-height: 100dvh; background: var(--ground); color: var(--text); font: 400 var(--step-0)/1.5 var(--f-sans); }
+h1, h2, h3, p, ul, ol, figure { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+img { display: block; max-width: 100%; height: auto; }
+a { color: inherit; text-decoration: none; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+.wrap { width: 100%; max-width: calc(var(--max) + 2 * var(--side)); margin-inline: auto; padding-left: max(var(--side), env(safe-area-inset-left)); padding-right: max(var(--side), env(safe-area-inset-right)); }
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.skip { position: absolute; top: calc(-1 * var(--sp-8)); left: var(--sp-4); z-index: 10; padding: var(--sp-2) var(--sp-4); background: var(--text); color: var(--ground); font: 400 var(--step--1)/1 var(--f-weft); }
+.skip:focus { top: var(--sp-2); }
+.n { font-family: var(--f-weft); font-variant-numeric: tabular-nums; font-feature-settings: "ss01" 1; }
+.b1 { border-bottom: 1px solid var(--line); }
+.b1 ul { display: flex; align-items: center; gap: var(--sp-5); height: var(--bar1); font: 400 var(--step--1)/1 var(--f-weft); white-space: nowrap; overflow-x: auto; scrollbar-width: none; }
+.b1 ul::-webkit-scrollbar { display: none; }
+.b1 li { flex: none; height: 100%; }
+.b1 a, .b1 span { display: inline-flex; align-items: center; height: 100%; color: var(--muted); }
+@media (hover: hover) { .b1 a:hover { color: var(--text); } }
+.b1 [aria-current] { color: var(--text); text-decoration: underline 2px var(--accent); text-underline-offset: 6px; }
+.b2 { position: sticky; top: 0; z-index: 5; background: var(--ground); border-bottom: 1px solid transparent; }
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: scroll()) {
+    .b2 { animation: b2-line linear both; animation-timeline: scroll(root); animation-range: var(--b1h) calc(var(--b1h) + 1px); }
+    @keyframes b2-line { to { border-bottom-color: var(--line); } }
+  }
+}
+.b2 .wrap { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-5); height: var(--bar2); }
+.logo { display: inline-flex; align-items: center; gap: var(--sp-3); flex: none; color: var(--text); }
+.logo img, .logo svg { width: 28px; height: 28px; border-radius: 4px; }
+.logo svg { fill: currentColor; border-radius: 0; }
+.logo .r { fill: var(--accent); }
+.wm { font: 650 var(--step-2)/1 var(--f-heddle); letter-spacing: -0.01em; font-stretch: 100%; }
+.secs { display: flex; align-items: center; gap: var(--sp-5); min-width: 0; font: 400 var(--step--1)/1 var(--f-weft); white-space: nowrap; overflow-x: auto; scrollbar-width: none; }
+.secs::-webkit-scrollbar { display: none; }
+.secs a { display: inline-flex; align-items: center; height: 44px; position: relative; flex: none; }
+@media (hover: hover) { .secs a:hover { color: var(--muted); } }
+.secs [aria-current]::after { content: ""; position: absolute; left: 0; right: 0; bottom: var(--sp-2); height: 2px; background: var(--accent); }
+@media (max-width: 719px) {
+  .b1 ul { flex-wrap: wrap; height: auto; column-gap: var(--sp-4); row-gap: 0; padding-block: var(--sp-1); overflow: visible; }
+  .b1 li { height: var(--sp-6); }
+  :root { --b1h: 73px; }
+  .secs { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - var(--sp-6)), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - var(--sp-6)), transparent); padding-right: var(--sp-6); }
+  .b2 .wrap { justify-content: flex-start; gap: var(--sp-4); }
+  .secs { gap: var(--sp-4); }
+}
+.banner { margin-top: var(--sp-5); }
+.banner img { width: 100%; aspect-ratio: 1408 / 469; object-fit: cover; -webkit-mask-image: linear-gradient(transparent, #000 10%, #000 90%, transparent); mask-image: linear-gradient(transparent, #000 10%, #000 90%, transparent); }
+@media (max-width: 719px) { .banner img { aspect-ratio: 1240 / 469; } }
+.line { margin-top: var(--sp-6); max-width: 28em; font-weight: 400; font-size: var(--t-line); line-height: 1.25; text-wrap: pretty; hyphens: none; }
+@media (min-width: 720px) { .line { text-wrap: balance; } }
+.line.weft { font-family: var(--f-weft); }
+.line.heddle { font-family: var(--f-heddle); font-weight: 400; letter-spacing: -0.01em; }
+.line.warp { font-family: var(--f-warp); letter-spacing: -0.01em; }
+.nb { white-space: nowrap; }
+.warp { font-variant-numeric: oldstyle-nums proportional-nums; }
+.warp .sc { font-variant-caps: all-small-caps; letter-spacing: 0.04em; }
+.fit1 { white-space: nowrap; }
+@media (max-width: 519px) { .heddle.fit1, .wm { font-stretch: 80%; } }
+.row { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--gutter); margin-top: var(--sp-7); padding-top: var(--sp-5); border-top: 1px solid var(--line); }
+.row.tight { margin-top: var(--sp-6); }
+.row > * { grid-column: 4 / 13; min-width: 0; }
+.row > .lbl { grid-column: 1 / 4; }
+.lbl { display: flex; align-items: center; align-self: start; gap: var(--sp-2); min-height: 20px; font: 400 var(--step--1)/1.4 var(--f-weft); letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
+.mk { flex: none; width: 11px; height: 11px; }
+.mk .o { fill: var(--line); }
+.mk .on { fill: var(--accent); }
+@media (max-width: 859px) {
+  .row > *, .row > .lbl { grid-column: 1 / -1; }
+  .row > .lbl { margin-bottom: var(--sp-4); }
+}
+.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-6) var(--gutter); }
+.grid.g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 999px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 520px) { .grid.g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 519px) { .grid, .grid.g2 { grid-template-columns: minmax(0, 1fr); gap: var(--sp-5); } }
+.plate { display: grid; align-content: start; min-width: 0; }
+.pic { display: block; border-radius: 2px; }
+.pic img, .tile { width: 100%; aspect-ratio: 3 / 1; object-fit: cover; border-radius: 2px; outline: 1px solid var(--line); outline-offset: -1px; }
+.ds { margin-top: var(--sp-2); font: 400 var(--step-0)/1.4 var(--f-sans); color: var(--muted); text-wrap: pretty; }
+.facts { margin-top: var(--sp-1); font: 400 var(--step--1)/1.4 var(--f-weft); color: var(--muted); font-variant-numeric: tabular-nums; font-feature-settings: "ss01" 1; font-variation-settings: "FRAG" 0; }
+.facts { overflow: hidden; }
+.facts > span { display: inline-flex; flex-wrap: wrap; margin-left: calc(-1 * var(--sp-4)); }
+.facts > span > span { white-space: nowrap; }
+.facts > span > span::before { content: "\00b7"; display: inline-block; width: var(--sp-4); text-align: center; }
+a.u, .ds a { color: var(--text); text-decoration: underline 1px var(--accent); text-underline-offset: 0.2em; text-decoration-thickness: from-font; }
+.ds a { display: inline-block; padding-block: var(--sp-3); margin-block: calc(-1 * var(--sp-3)); }
+@media (hover: hover) {
+  .plate:hover .pic img, .plate:hover .tile { filter: brightness(1.02); }
+  .plate:hover .facts { font-variation-settings: "FRAG" 40; }
+}
+.plate:focus-within .facts { font-variation-settings: "FRAG" 40; }
+@media (prefers-reduced-motion: no-preference) {
+  .pic img, .tile { transition: filter 240ms var(--ease); }
+  .facts { transition: font-variation-settings 240ms var(--ease); }
+}
+@media (prefers-reduced-motion: reduce) { .plate:focus-within .facts { font-variation-settings: "FRAG" 0; } }
+@media (hover: hover) and (prefers-reduced-motion: reduce) { .plate:hover .facts { font-variation-settings: "FRAG" 0; } }
+.latest { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-4) var(--gutter); }
+.latest.n4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.latest.n1 { grid-template-columns: minmax(0, 1fr); }
+.latest.n2 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.latest.n1 li { grid-template-columns: auto auto; justify-content: start; align-items: baseline; gap: var(--sp-4); }
+.latest li { display: grid; gap: var(--sp-1); min-width: 0; }
+.latest a { justify-self: start; color: var(--text); text-decoration: underline 1px var(--accent); text-underline-offset: 0.2em; text-decoration-thickness: from-font; }
+.latest .facts { margin-top: 0; }
+@media (max-width: 859px) { .latest.n4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 519px) {
+  .latest, .latest.n1, .latest.n2, .latest.n4 { grid-template-columns: minmax(0, 1fr); gap: 0; border-top: 1px solid var(--line); }
+  .latest li, .latest.n1 li { grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: var(--sp-4); padding-block: var(--sp-3); border-bottom: 1px solid var(--line); }
+}
+footer { margin-top: var(--sp-8); padding-bottom: max(var(--sp-6), env(safe-area-inset-bottom)); }
+footer .fl { padding-top: var(--sp-4); border-top: 1px solid var(--line); overflow: hidden; }
+footer ul { display: flex; flex-wrap: wrap; align-items: center; margin-left: calc(-1 * var(--sp-6)); font: 400 var(--step--1)/1 var(--f-weft); color: var(--muted); }
+footer li { display: inline-flex; align-items: center; }
+footer li::before { content: "\00b7"; width: var(--sp-6); text-align: center; }
+footer a { display: inline-flex; align-items: center; min-height: 44px; }
+@media (hover: hover) { footer a:hover { color: var(--text); } }
+@media (max-width: 719px) { footer a { min-height: var(--sp-6); } }
+.tester { display: grid; gap: 0; }
+.trow { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--gutter); padding-block: var(--sp-4); border-bottom: 1px solid var(--line); }
+.trow:first-child { padding-top: 0; }
+.tmeta { grid-column: 1 / 4; display: grid; align-content: start; gap: var(--sp-2); font: 400 var(--step--1)/1.4 var(--f-weft); color: var(--muted); }
+.tmeta b { font-weight: 400; color: var(--text); }
+.tline { grid-column: 4 / 13; min-width: 0; font-size: var(--t-display); line-height: 1.1; overflow-wrap: break-word; outline-offset: var(--sp-1); caret-color: var(--text); }
+.tline.weft { font-family: var(--f-weft); }
+.tline.sans { font-family: var(--f-sans); letter-spacing: -0.01em; }
+.tline.heddle { font-family: var(--f-heddle); letter-spacing: -0.01em; }
+.tline.warp { font-family: var(--f-warp); }
+.full .tline.weft { font-family: "mm Weft Full", var(--f-weft); }
+.full .tline.sans { font-family: "mm Sans Full", var(--f-sans); }
+.full .tline.heddle { font-family: "mm Heddle Full", var(--f-heddle); }
+.full .tline.warp { font-family: "mm Warp Full", var(--f-warp); }
+.tin { display: none; width: 100%; padding: var(--sp-3) var(--sp-4); border: 1px solid var(--line); border-radius: 2px; background: var(--surface); color: var(--text); font: 400 var(--step-0)/1.5 var(--f-sans); }
+.tin::placeholder { color: var(--muted); }
+.js .tin { display: block; }
+.tester { grid-column: 1 / 13; margin-top: var(--sp-5); }
+.ctl { display: none; grid-template-columns: minmax(0, 1fr) 3.5em; align-items: center; gap: var(--sp-2); }
+.js .ctl { display: grid; }
+.ctl span { grid-column: 1 / -1; }
+.ctl input { width: 100%; margin: 0; accent-color: var(--text); }
+.ctl output { text-align: end; color: var(--text); }
+@media (max-width: 859px) {
+  .tmeta, .tline { grid-column: 1 / -1; }
+  .tmeta { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); margin-bottom: var(--sp-3); }
+  .tmeta b { grid-column: 1 / -1; }
+}
+.tile { display: grid; align-items: center; justify-items: start; padding-inline: var(--sp-5); background: var(--surface); color: var(--text); overflow: hidden; white-space: nowrap; font-size: var(--step-4); line-height: 1; }
+.tile.weft { font-family: var(--f-weft); font-feature-settings: "ss01" 1; }
+.tile.sans { font-family: var(--f-sans); font-weight: 500; letter-spacing: -0.02em; }
+.tile.heddle { font-family: var(--f-heddle); font-weight: 700; }
+.tile.warp { font-family: var(--f-warp); }
+.table { border-top: 1px solid var(--line); }
+.table li { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: var(--sp-4); padding-block: var(--sp-3); border-bottom: 1px solid var(--line); }
+.table .k { font: 400 var(--step--1)/1.9 var(--f-weft); color: var(--muted); }
+.table p { max-width: 66ch; }
+.more { margin-top: var(--sp-5); }
+@media (max-width: 519px) { .table li { grid-template-columns: minmax(0, 1fr); gap: 0; } }
+.nf { min-height: 50dvh; }
+.nf p + p { margin-top: var(--sp-4); }
+</style></head>
+<body><a class="skip" href="#main">Skip to content</a><nav class="b1" aria-label="Sites"><ul class="wrap"><li><span aria-current="page">machine-made</span></li><li><a href="https://openfluids.github.io/">openfluids</a></li><li><a href="https://boringquantsystems.github.io/">BoringQuantSystems</a></li><li><a href="https://machine-made.github.io/type/">type</a></li></ul></nav><header class="b2"><div class="wrap"><a class="logo" href="/" aria-label="machine-made home"><svg viewBox="0 0 30 30" aria-hidden="true" focusable="false"><rect x="0" y="0" width="8" height="8"/><rect x="11" y="0" width="8" height="8"/><rect x="22" y="0" width="8" height="8"/><rect x="0" y="11" width="8" height="8"/><rect class="r" x="11" y="11" width="8" height="8"/><rect x="22" y="11" width="8" height="8"/><rect x="0" y="22" width="8" height="8"/><rect x="11" y="22" width="8" height="8"/><rect x="22" y="22" width="8" height="8"/></svg></a><nav class="secs" aria-label="Sections"><a href="/#g-type">Type</a><a href="/#g-science-and-numerics">Science</a><a href="/#g-tools-for-agents">Agents</a><a href="/#g-desktop">Desktop</a><a href="https://github.com/machine-made">GitHub</a></nav></div></header><main id="main" class="wrap nf"><h1 class="line weft">Not found</h1><p class="ds">This page does not exist.</p><p class="more"><a class="u" href="/">Back to machine-made</a></p></main><footer class="wrap"><div class="fl"><ul><li><a href="https://machine-made.github.io/">machine-made</a></li><li><a href="https://openfluids.github.io/">openfluids</a></li><li><a href="https://boringquantsystems.github.io/">BoringQuantSystems</a></li><li><a href="https://machine-made.github.io/type/">type</a></li></ul></div></footer></body></html>

@@ -8,7 +8,7 @@
     "text": "#e6eef2",
     "muted": "#8395a0",
     "accent": "#5cc8d6",
-    "font": "Lato"
+    "font": "machine-made Sans"
   },
   "sites": [
     [
@@ -22,6 +22,10 @@
     [
       "BoringQuantSystems",
       "https://boringquantsystems.github.io/"
+    ],
+    [
+      "type",
+      "https://machine-made.github.io/type/"
     ]
   ],
   "groups": [
@@ -61,5 +65,8 @@
     "openfluids/dynachaos": "https://openfluids.github.io/dynachaos/",
     "openfluids/chaos-atlas": "https://openfluids.github.io/chaos-atlas/"
   },
-  "redirects": {}
+  "redirects": {},
+  "site_labels": {
+    "openfluids/linstabpy": "docs"
+  }
 }

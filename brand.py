@@ -3,7 +3,7 @@
 
 Usage: python3 brand.py --fonts DIR [--out DIR]
 --fonts  the folder of the site fonts: fonts/ in this repository (mm-weft.woff2, mm-sans.woff2,
-         which fonts.py cuts from machine-made/type). Needed. The type in the hero is cut into
+         the 0.1 cut of the fonts: brand-fonts/ in this repository). Needed. The type in the hero is cut into
          outlines from these files at fixed axis values, so the hero needs no font.
 --out    where the files go; default brand/ in this repository.
 

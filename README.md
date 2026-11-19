@@ -27,7 +27,7 @@ deterministic: the same source tree gives the same bytes.
 | `card.py` | The marks: the square logo, the punched card of the profile hero and the rows of dots. The palette |
 | `build.py` | The generator: page, style, `llms.txt`, the weave; uses `card.py` |
 | `brand.py` | The GitHub profile hero and the avatar, drawn from `card.py` and `brand-fonts/`. Writes `brand/` |
-| `fonts/` | The machine-made web fonts (Weft, Sans, Warp 0.2.0) and their licences. `build.py` copies them to `docs/fonts/` |
+| `fonts/` | The machine-made web fonts (Weft, Sans, Warp 0.2.0) and their licences. `build.py` copies the fonts each site uses to `docs/fonts/` |
 | `brand-fonts/` | The 0.1 cut of Weft and Sans that `brand.py` draws the hero from, with their licences. Only `brand.py` reads it; the sites do not ship it |
 | `brand/` | The profile hero (light and dark: SVG, PNG, PNG @2x) and `avatar.png`. Do not edit by hand |
 | `src/style.css` | The style. `build.py` adds the colours and writes `docs/style.css` |
@@ -53,13 +53,13 @@ Every page is set in machine-made typefaces only, from [machine-made/type](https
 (https://machine-made.github.io/type/), all at version 0.2.0. machine-made Weft sets the top bar, the labels and
 the footer on every site, and the text of machine-made.github.io. machine-made Sans sets the text of
 openfluids.github.io. machine-made Warp sets the text of boringquantsystems.github.io. machine-made Sans is
-based on Plus Jakarta Sans by Gumpita Rahayu, Tokotype. All are under the SIL Open Font License 1.1; the licences
+based on Plus Jakarta Sans (see its licence file). All are under the SIL Open Font License 1.1; the licences
 are `fonts/mm-weft-OFL.txt`, `fonts/mm-sans-OFL.txt` and `fonts/mm-warp-OFL.txt`, and the build ships each next to
 its fonts in `docs/fonts/`.
 
-`fonts/` holds the woff2 files of the 0.2.0 releases, unchanged. Each file is byte-identical to the release asset
-and to the file the type site serves. The build copies them; it does not cut or change them. `check_site.py` pins
-the SHA-256 of each file and fails on a page that declares another font family, loads another font file, or ships a
+`fonts/` holds the woff2 files of the 0.2.0 releases, unchanged: each file has the SHA-256 digest that the release
+publishes for its asset, and the type site serves the same bytes. The build copies them; it does not cut or change
+them. `check_site.py` pins the SHA-256 of each file and fails on a page that declares another font family, loads another font file, or ships a
 machine-made file that is not the 0.2.0 one. To update, copy the new files into `fonts/`, change the hashes in
 `FONT_SPECS` of `check_site.py` and the table below.
 

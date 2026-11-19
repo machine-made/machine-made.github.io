@@ -147,7 +147,7 @@ def main() -> None:
     parser.add_argument("--fonts", type=Path, required=True)
     parser.add_argument("--out", type=Path, default=ROOT / "brand")
     args = parser.parse_args()
-    site = build.load_site()
+    site = build.load_site(ROOT / "site.json")
     args.out.mkdir(parents=True, exist_ok=True)
     jobs: list[tuple[str, str, int, int]] = []
     modes: tuple[card.Mode, ...] = ("light", "dark")

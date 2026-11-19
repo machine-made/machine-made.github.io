@@ -90,7 +90,7 @@ a:focus-visible {
 }
 
 /* The top bar: the three sites and the type site. Weft sets it on every house. The current site is
-   marked and is not a link. */
+   marked and is not a link. The footer repeats the four names as links. */
 .bar {
   display: flex;
   flex-wrap: wrap;
@@ -118,7 +118,8 @@ a:focus-visible {
 /* On a narrow screen every link is at least 44 px high. */
 @media (max-width: 720px) {
   .bar a,
-  .bar span {
+  .bar span,
+  footer a {
     min-height: 44px;
   }
 }
@@ -236,6 +237,30 @@ footer {
   font: 400 0.71875rem / 1 var(--mono);
   letter-spacing: 0.04em;
   color: var(--muted);
+}
+
+/* The footer line: the four links, set like the top bar. Each link but the last draws a dot after its name,
+   so a dot stays on the line of the name it follows. */
+footer p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 0.5em;
+}
+
+footer a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  padding-block: 6px;
+}
+
+footer a:not(:last-child)::after {
+  content: "";
+  width: 3px;
+  height: 3px;
+  background: var(--muted);
+  border-radius: 50%;
 }
 
 /* Hover effects only for pointers that hover. Motion only when the reader has not asked for less. */

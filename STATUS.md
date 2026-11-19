@@ -16,7 +16,7 @@
 ## Proven
 
 - Live at https://machine-made.github.io/, served by GitHub Pages from `docs/` on main.
-  Checked on 2026-10-27: the page loads machine-made Weft and machine-made Sans from `docs/fonts/`.
+  Checked on 2026-10-27: the page loads machine-made Weft from `docs/fonts/`.
 - Two builds give byte-identical files, fonts included.
 - `check_site.py` passes: the HTML parses, every local link and image resolves, the banner has
   alt text and each plate image is decorative (alt="") beside a named link, contrast is at least 4.5:1 for text and 3:1 for accent marks, one accent colour, and only the public projects and the two houses are linked. The old /chaos-atlas/ path forwards to https://openfluids.github.io/chaos-atlas/ and /dynachaos/ to https://github.com/openfluids/dynachaos.
@@ -29,10 +29,10 @@
 - `fonts/` holds the release files unchanged (README, Fonts).
 - The header shows the weave and the square mark, with one red accent. Every row of dots encodes its
   section title; the checker reads the dots back and compares the text.
-- `brand/` is what `brand.py` writes from `brand-fonts/`, and two runs give the same bytes
-  (`MM_FONTS=brand-fonts sh gate.sh`).
-- Screenshots at 1440 px and 375 px, light and dark, in the site's own fonts (`shots.py` checks
-  that both fonts loaded). No horizontal scroll from 320 px to 1920 px. Longest line of copy 62
+- `brand/` was drawn by `brand.py` from the 0.1 cut, now in `brand-fonts/`. The brand gate
+  (`MM_FONTS=brand-fonts sh gate.sh`) was last run before the 0.2.0 change and was not run for it.
+- Screenshots at 1280 px and 390 px, in the site's own fonts (`shots.py` checks that the fonts the
+  text uses loaded). No horizontal scroll from 320 px to 1920 px. Longest line of copy under 70
   characters.
 
 ## Open risks

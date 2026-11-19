@@ -16,7 +16,7 @@
 ## Proven
 
 - Live at https://machine-made.github.io/, served by GitHub Pages from `docs/` on main.
-  Checked on 2026-10-27: the page loads machine-made Weft from `docs/fonts/`.
+  Checked on 2026-11-19 with `shots.py` on the built site: the page loads machine-made Weft from `docs/fonts/`.
 - Two builds give byte-identical files, fonts included.
 - `check_site.py` passes: the HTML parses, every local link and image resolves, the banner has
   alt text and each plate image is decorative (alt="") beside a named link, contrast is at least 4.5:1 for text and 3:1 for accent marks, one accent colour, and only the public projects and the two houses are linked. The old /chaos-atlas/ path forwards to https://openfluids.github.io/chaos-atlas/ and /dynachaos/ to https://github.com/openfluids/dynachaos.

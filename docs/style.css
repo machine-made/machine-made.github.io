@@ -1,5 +1,5 @@
 @font-face{font-family:"machine-made Weft";src:url(fonts/mm-weft.woff2) format("woff2");font-weight:100 900;font-style:normal;font-display:swap}
-:root{--bg:#0a0a0b;--fg:#ecebe6;--muted:#8b8b90;--accent:#e5251c;--edge:#222223;--font:"machine-made Weft", ui-monospace, "SF Mono", Menlo, Consolas, monospace;--mono:"machine-made Weft", ui-monospace, "SF Mono", Menlo, Consolas, monospace;--fs:0.875rem;--ls:1.375rem;}
+:root{--bg:#0a0a0b;--fg:#ecebe6;--muted:#8b8b90;--accent:#e5251c;--edge:#222223;--font:"machine-made Weft", ui-monospace, monospace;--mono:"machine-made Weft", ui-monospace, monospace;--ws:normal;--fs:1rem;--ls:1.5rem;}
 /* The colours, the fonts and the sizes of a house come first (:root). */
 
 :root {
@@ -91,7 +91,8 @@ a:focus-visible {
   margin-inline: auto;
 }
 
-/* The top bar: the three sites. Weft sets it on every house. */
+/* The top bar: the three sites and the type site. Weft sets it on every house. The current site is
+   marked and is not a link. */
 .bar {
   display: flex;
   flex-wrap: wrap;
@@ -101,16 +102,27 @@ a:focus-visible {
   letter-spacing: 0.04em;
 }
 
-.bar a {
+.bar a,
+.bar span {
+  display: inline-flex;
+  align-items: center;
   padding-block: 6px;
   color: var(--muted);
   overflow-wrap: anywhere;
 }
 
-.bar a[aria-current="page"] {
+.bar [aria-current="page"] {
   color: var(--fg);
   text-decoration: underline 2px var(--accent);
   text-underline-offset: 6px;
+}
+
+/* On a narrow screen every link is at least 44 px high. */
+@media (max-width: 720px) {
+  .bar a,
+  .bar span {
+    min-height: 44px;
+  }
 }
 
 /* The banner is the image of the GitHub profile. Its top and bottom edges fade into the ground. */
@@ -134,10 +146,12 @@ a:focus-visible {
   font-size: var(--ls);
   line-height: 1.3;
   text-wrap: balance;
+  word-spacing: var(--ws);
 }
 
 .blurb {
   max-width: 52ch;
+  word-spacing: var(--ws);
   font-size: calc(var(--fs) * 0.88);
   color: var(--muted);
 }
@@ -180,13 +194,6 @@ a:focus-visible {
   min-width: 0;
 }
 
-.whole {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-  overflow: hidden;
-}
-
 .pic {
   display: block;
   overflow: hidden;
@@ -202,16 +209,29 @@ a:focus-visible {
   border-radius: 2px;
 }
 
-.plate .nm {
-  font-size: calc(var(--fs) * 0.95);
-  overflow-wrap: anywhere;
-}
-
 .plate .ds {
+  word-spacing: var(--ws);
   font-size: calc(var(--fs) * 0.8);
   color: var(--muted);
   line-height: 1.35;
   overflow-wrap: anywhere;
+}
+
+/* The small link after a description: always underlined, so a touch screen shows it too. */
+.ds a {
+  color: var(--fg);
+  text-decoration: underline 1px var(--accent);
+  text-underline-offset: 0.2em;
+}
+
+@media (max-width: 720px) {
+  .ds a {
+    display: flex;
+    align-items: center;
+    width: fit-content;
+    min-height: 44px;
+    margin-block: -14px;
+  }
 }
 
 footer {
@@ -223,10 +243,12 @@ footer {
 
 /* Hover effects only for pointers that hover. Motion only when the reader has not asked for less. */
 @media (hover: hover) {
-  .whole:hover .nm,
-  .nm:hover {
-    text-decoration: underline 1px var(--accent);
-    text-underline-offset: 0.2em;
+  .pic:hover img {
+    outline-color: var(--accent);
+  }
+
+  .ds a:hover {
+    text-decoration-thickness: 2px;
   }
 }
 
@@ -238,7 +260,6 @@ footer {
 }
 
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
-  .whole:hover img,
   .pic:hover img {
     transform: scale(1.02);
   }

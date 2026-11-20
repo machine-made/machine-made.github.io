@@ -2,13 +2,14 @@
   "name": "machine-made",
   "owner": "machine-made",
   "line": "A home-built, asynchronous factory for scientific software.",
-  "blurb": "In 1804 the Jacquard loom wove patterns read from punched cards. The pattern came from a person; the cloth came from the machine. The name and the mark come from those cards.",
   "theme": {
     "ground": "#0a0a0b",
+    "surface": "#141416",
+    "line": "#26262a",
     "text": "#ecebe6",
     "muted": "#8b8b90",
     "accent": "#e5251c",
-    "font": "machine-made Weft"
+    "face": "weft"
   },
   "nav": [
     {
@@ -32,6 +33,7 @@
   "groups": [
     {
       "title": "Type",
+      "nav": "Type",
       "projects": [
         {
           "repo": "type",
@@ -42,6 +44,7 @@
     },
     {
       "title": "Science and numerics",
+      "nav": "Science",
       "projects": [
         {
           "repo": "minuit2-rs",
@@ -67,6 +70,7 @@
     },
     {
       "title": "Tools for agents",
+      "nav": "Agents",
       "projects": [
         {
           "repo": "alexandria",
@@ -96,6 +100,7 @@
     },
     {
       "title": "Desktop",
+      "nav": "Desktop",
       "projects": [
         {
           "repo": "pdf-next",

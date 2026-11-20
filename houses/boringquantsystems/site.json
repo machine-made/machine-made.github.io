@@ -3,13 +3,14 @@
   "title": "BoringQuantSystems",
   "owner": "BoringQuantSystems",
   "line": "Boring on purpose. Deterministic infrastructure for non-deterministic systems.",
-  "blurb": "The best systems are the ones nobody talks about. BoringQuantSystems aims to be one of them.",
   "theme": {
     "ground": "#050507",
+    "surface": "#0e0e11",
+    "line": "#1f1f23",
     "text": "#ecebe6",
     "muted": "#8b8b90",
     "accent": "#3ddc97",
-    "font": "machine-made Warp"
+    "face": "warp"
   },
   "nav": [
     {
@@ -33,6 +34,7 @@
   "groups": [
     {
       "title": "Engines",
+      "nav": "Engines",
       "projects": [
         {
           "repo": "nanobook",

@@ -7,7 +7,7 @@
 | Line | identity |
 | Visibility | public |
 | Stage | live |
-| Gate now | `sh gate.sh` passes; `MM_FONTS=brand-fonts sh gate.sh` needs a Playwright browser and was not run for this change |
+| Gate now | `sh gate.sh` passes with `MM_CHROME` and `MM_AXE` set (one fetch, three houses, self-tests, browser checks); `MM_FONTS=brand-fonts sh gate.sh` was not run for this change |
 | Next task | Update the fonts when machine-made/type releases a new version |
 | Blocked by | nothing |
 | Last green CI | none yet |
@@ -16,24 +16,20 @@
 ## Proven
 
 - Live at https://machine-made.github.io/, served by GitHub Pages from `docs/` on main.
-  Checked on 2026-11-19 with `shots.py` on the built site: the page loads machine-made Weft from `docs/fonts/`.
-- Two builds give byte-identical files, fonts included.
-- `check_site.py` passes: the HTML parses, every local link and image resolves, the banner has
-  alt text and each plate image is decorative (alt="") beside a named link, contrast is at least 4.5:1 for text and 3:1 for accent marks, one accent colour, and only the public projects and the two houses are linked. The old /chaos-atlas/ path forwards to https://openfluids.github.io/chaos-atlas/ and /dynachaos/ to https://github.com/openfluids/dynachaos.
-- The page makes no external request. Every site uses machine-made fonts only, version 0.2.0: Weft, and Sans or Warp
-  for the text of openfluids and BoringQuantSystems. They are files in `docs/fonts/` with their licences.
-  `check_site.py` fails on any external stylesheet, preload, font or css url, on a font family or file that is not
-  machine-made, on a machine-made file that is not the 0.2.0 one (SHA-256), on an `@font-face` without
-  `font-display: swap`, and on bold or italic that no loaded face provides. `shots.py` records every request and
-  fails on one outside `docs/`.
-- `fonts/` holds the release files unchanged (README, Fonts).
-- The header shows the weave and the square mark, with one red accent. Every row of dots encodes its
-  section title; the checker reads the dots back and compares the text.
-- `brand/` was drawn by `brand.py` from the 0.1 cut, now in `brand-fonts/`. The brand gate
-  (`MM_FONTS=brand-fonts sh gate.sh`) was last run before the 0.2.0 change and was not run for it.
-- Screenshots at 1280 px and 390 px, in the site's own fonts (`shots.py` checks that the fonts the
-  text uses loaded). No horizontal scroll from 320 px to 1920 px. Longest line of copy under 70
-  characters.
+- The three house sites share one design system, `src/system.css`, from the approved design of 19 Nov: two bars,
+  the banner, the house line, Latest, the plates with live GitHub facts, the houses row, the footer, a 404 page.
+- One GitHub fetch per gate; two builds of every house from it give byte-identical files, fonts and images included.
+  A failed fetch stops the build before any file is written.
+- `check_site.py` passes on every house: the HTML parses, every local link, image and srcset resolves, the facts,
+  Latest and the houses row match the fetched data, contrast is at least 7:1 for text and 4.5:1 for muted text on
+  the ground and the surface, every size is a step of the type scale and every spacing a token of the spacing
+  scale, only the public projects and the four sites are linked. The old /chaos-atlas/ path forwards to
+  https://openfluids.github.io/chaos-atlas/ and /dynachaos/ to https://github.com/openfluids/dynachaos.
+- Every site uses machine-made fonts only, version 0.2.0, as subsets cut from the release files that `fonts/SOURCES.json`
+  and `check_site.py` pin by SHA-256; every subset keeps its axes and the features the style uses.
+- `shots.py` passes on every house: no sideways scroll from 320 to 1920 px, no glyph in a system font, no facts line
+  wraps at 1280 px, every link at least 44 px high at 390 px, axe-core 0 violations on the home page and the 404 page.
+- `brand/` was drawn by `brand.py` from the 0.1 cut, now in `brand-fonts/`.
 
 ## Open risks
 
@@ -41,6 +37,7 @@
   cut, kept in `brand-fonts/`; `brand/` was not rebuilt (README, Fonts).
 - Weft has no hinting. Small mono text (project names, footer) can look soft on Windows at low
   resolution.
-- Weft covers Latin-1 only. A project name or line with other letters falls back to the system
-  monospace for those letters.
+- Weft covers Latin-1 only. A project name or line with other letters would fall back to a system font;
+  `shots.py` fails on that.
+- The facts are as fresh as the last build: the site changes only when someone builds and publishes it.
 - There is no CI in this repository. The gate (`sh gate.sh`) runs by hand before each merge.

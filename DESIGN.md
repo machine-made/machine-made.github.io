@@ -1,97 +1,82 @@
 # Design
 
-One page, built by `build.py` from `site.json`. The page has one vertical axis: the left edge of
-the weave in the header. Every section starts its text there.
+One design system for the four sites: machine-made, openfluids, BoringQuantSystems and type. This generator builds
+the first three; the type site copies the same `src/system.css`. The stylesheet is the specification: its header
+comment lists the scale, the spacing, the grid and the four uses of the accent. A house sets only its six colours,
+its face, its banner, its bar-2 labels and its groups (`site.json`).
 
-## Grid
+## Page
 
-- Two columns on screens 720 px and wider. The left column ends at `--split` (34.091% of the
-  width). The right column holds the content. Below 720 px, one column.
-- Maximum width 1280 px. Side margins 16, 24 and 32 px.
-- Spacing scale: 4, 8, 16, 24, 32, 48, 64, 96, 128 px. Sections are 96 or 128 px apart.
-- Every section starts with a faint row of dots across the full width (see Rows of dots).
-- Below 720 px the header is one column: the mark, the name, the lines and the weave, cropped to its right part so it fills the width.
+From top to bottom, the same on every house:
+
+1. Bar 1: the four sites, in the same order and face everywhere. The current site is marked, not linked.
+2. Bar 2: the house logo (the mark on machine-made, the organisation avatar elsewhere) and one link per group,
+   then GitHub. It sticks to the top; its bottom line appears after the first scroll.
+3. The banner, in the h1, with the house name as its alt text. It loads first.
+4. The house line, in the house face.
+5. Latest: the newest release of each repository, distinct repositories, newest first, at most three.
+6. The groups: a label (the 3 x 3 section mark and the title) and the plates. A plate is the repository banner as
+   a link, one line (with a site or docs link when the project has one) and the live facts: language, latest
+   release or "unreleased", last commit.
+7. The houses: the other two houses and the type site, each with its banner, its line and its newest release.
+8. The footer: the four sites on one line.
+
+The 404 page has the same bars and footer, "Not found" in the house face and a link home. GitHub Pages serves it
+at any depth, so its addresses start at the site root.
+
+## Grid and spacing
+
+- 12 columns, 24 px gutter, content 1200 px at most. Side margins 16, 24 and 32 px.
+- A row puts its label in columns 1 to 3 and its content in columns 4 to 12; below 860 px both take the full width.
+- Plates: three columns, two below 1000 px, one below 520 px. Images are 3:1.
+- Spacing: 4, 8, 12, 16, 24, 32, 48, 64, 96 px (`--sp-1` to `--sp-9`), nothing else.
 
 ## Type
 
-- machine-made Weft for the top bar, the group labels and the footer, and for the text of machine-made.github.io;
-  machine-made Sans for the text of openfluids.github.io; machine-made Warp for the text of
-  boringquantsystems.github.io. All are machine-made typefaces (github.com/machine-made/type, SIL Open Font
-  License 1.1), served from `docs/fonts/` with `font-display: swap`. Each page preloads the regular face of
-  Weft and of its text font.
-- The fonts are the full variable woff2 files of the 0.2.0 releases, copied unchanged: Weft wght 100 to 900
-  and FRAG 0 to 100, Sans wght 200 to 800 (README, Fonts).
-- Weft has one advance for every glyph, 750 units, and narrow ink, so it sets wide. Mono type has
-  negative tracking: -0.08 em on the name, -0.06 em on headings, -0.03 em on project names and
-  small text. Sans has a narrow word space, so reading text has 0.05 em of word spacing.
-- The name has FRAG 12: ink-trap notches, inside the range that the type repository proves for
-  text (0 to 15). All other text has FRAG 0.
-- Scale 1.25 on a 17 px base: 13.6, 17, 21.25, 26.6 px. The name is fluid: 30 to 48 px on small screens, 24 to 52 px beside the weave.
-- Sentence case. No capitals for emphasis.
-- Body copy is capped at 34rem (the larger intro at 36rem), so a line has fewer than 70 characters.
-  `shots.py` counts the longest line at every width and fails at 70 or more.
+- Weft for the bars, the labels, the facts and the footer. Sans for all reading text. The house line in the house
+  face: Weft on machine-made, Heddle on openfluids, Warp on BoringQuantSystems.
+- One scale, ratio 1.25 on 16 px: steps -1 to 5 (12.8 to 48.8 px). The house line is fluid between steps 2 and 3.
+- The fonts are machine-made, version 0.2.0 (README, Fonts). Each page ships a subset of each font it uses, with
+  every variation axis and every feature the style asks for, and preloads the house face.
+- Weights stay inside the range of the variable font, so no weight is faked. No italic.
 
 ## Colour
 
-- Light: white ground, black type, grey 595959 for small text, grey D9D9D9 for rules.
-- Dark: black ground, white type, grey A6A6A6, grey 2E2E2E.
-- One accent, red E5251C, the same in both schemes. It appears twice: the red square in the
-  mark and the red cell in the weave. It never colours text.
-- The weave, the mark and the rows of dots follow the system scheme through a media query inside
-  the SVG.
+Six colours per house: ground, surface, line, text, muted, accent. Text on the ground and on the surface is at
+least 7:1, muted text at least 4.5:1, the accent at least 3:1 on the ground. The accent has four uses: the bar-1
+marker, the bar-2 marker, the centre cell of the section mark, the link underline. It never colours text.
+
+| House | Ground | Surface | Line | Text | Muted | Accent |
+| --- | --- | --- | --- | --- | --- | --- |
+| machine-made | #0a0a0b | #141416 | #26262a | #ecebe6 | #8b8b90 | #e5251c |
+| openfluids | #0d1116 | #141a21 | #252c33 | #e6eef2 | #8395a0 | #5cc8d6 |
+| BoringQuantSystems | #050507 | #0e0e11 | #1f1f23 | #ecebe6 | #8b8b90 | #3ddc97 |
+
+## Images
+
+Every plate and banner ships as AVIF and JPEG at two widths (352 and 704 px for a plate, 704 and 1408 px for a
+banner) with `srcset` and `sizes`; images below the fold load lazily. `og.jpg` is the banner on the house ground at
+1200 by 630. Icons: the mark (`mark.svg`) on machine-made, the organisation avatar elsewhere, and a 180 px touch icon.
 
 ## Mark
 
-A 3 by 3 grid of squares. The centre square is red. It is the favicon, it stands above the name
-in the header and it is the avatar: on white, with about 18% padding. `card.py` draws it for the
-site and for `brand.py`, so they match.
-
-## Hero: how the weave is made
-
-The weave is a Jacquard cloth. Each thread is set by a draft, as on a Jacquard loom.
-
-1. Seed. SHA-256 of the name; the first 8 bytes seed a splitmix64 generator. The same name
-   always gives the same cloth. There is no other source of randomness.
-2. Frame. 1408 by 469 px. A thread cell is 4 px, so the cloth is 352 by 116 threads. The cloth
-   starts at x = 480 px. The left third of the frame stays empty for the name.
-3. Motif. A pixel is 4 by 4 threads. The cloth is 58 by 29 pixels. The generator picks a half
-   tile of 3 to 7 pixels and a distance rule (square, diamond or octagon). Rings 1 to 3 pixels
-   wide alternate between two levels; a 1 pixel ring of a third level appears one time in three;
-   one pixel in 16 flips. The tile is mirrored on both axes about the centre of the cloth.
-4. Draft. Level 0 is weft-faced satin: a warp thread is up one time in 5 or 8. Level 2 is the
-   complement, warp-faced. Level 1 is a twill. Satin step and twill width come from the seed.
-5. Drawing. Each level is one SVG pattern that holds one repeat of its draft: warp threads in
-   ink, weft threads in light grey. The motif masks are merged rectangles that use the patterns.
-6. Red cell. The generator picks a 2 by 2 pixel block of one level and draws it from the same
-   draft, with red threads. There is at most one.
-
-Result: about 4 KB per hero. The same input gives identical bytes.
-
-## Rows of dots
-
-The punched card is a detail, not the identity. Each section rule is one faint row of dots that
-encodes the section title, and the footer rule encodes the site name. 7 slots a character, one
-empty slot between characters, 8 px a slot. A big dot is a 1 bit and a small dot is a 0 bit; the
-top slot is the high bit of the 7-bit ASCII code. The row is decorative: `aria-hidden`, empty
-alt, in the rule colour, with no accent. It is cropped on a narrow screen, not scaled.
-`check_site.py` reads the dots back and compares the text.
+A 3 by 3 grid of squares. The centre square is red. It is the favicon of machine-made, the logo in its bar 2 and,
+small, the section mark before every label. `card.py` draws it for the site and for `brand.py`, so they match.
 
 ## Profile hero
 
-The GitHub profile hero (`brand.py`) is the one place the whole card shows: the header of the
-site with the square mark, the name and the lines on the left, and a punched card on the right.
-The card has seven rows and one column per character, a cut top-left corner, holes for the 1
-bits, and one red dot in the lowest 1 bit of the last column. It encodes "Made by machines.
-Proven for machines." (38 columns). The caption, in small mono, says so.
+The GitHub profile hero (`brand.py`) is the one place the whole punched card shows: the square mark, the name and
+the lines on the left, and a punched card on the right. The card has seven rows and one column per character, a
+cut top-left corner, holes for the 1 bits, and one red dot in the lowest 1 bit of the last column. It encodes
+"Made by machines. Proven for machines." (38 columns). The caption, in small mono, says so.
 
 ## Quality bar
 
-- Semantic HTML: header, main, sections with h2, lists, footer. One h1.
-- Skip link first. Visible focus ring. Alt text on every image.
-- Contrast: black on white 21:1, grey 595959 on white 7:1, white on black 21:1, grey A6A6A6 on
-  black 8.6:1. The gate computes these.
-- No script. No tracking. External requests: none. `check_site.py` fails on any external
-  stylesheet, font, preload or css url, and `shots.py` fails when the page asks for any file
-  outside `docs/`.
-- No horizontal scroll from 320 px to 1920 px. `shots.py` measures it at 320, 360, 375, 720, 1000,
-  1440 and 1920 px, in light and dark.
+- Semantic HTML: bars, main, sections with h2, lists, footer. One h1, no skipped heading level.
+- Skip link first. Visible focus ring in the accent. Alt text on the banner; every other image is decorative and its
+  link carries the name.
+- No script. No tracking. No external request: `check_site.py` fails on any external stylesheet, font, preload or
+  CSS url, and `shots.py` fails when the page asks for a file outside the site.
+- No horizontal scroll from 320 px to 1920 px, and no element past the right edge outside a scrolling box.
+- No glyph drawn in a system font, at 390 and 1280 px, on the home page and the 404 page.
+- Every link at least 44 px high at 390 px.

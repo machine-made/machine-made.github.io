@@ -2,8 +2,6 @@
 
 > A home-built, asynchronous factory for scientific software.
 
-In 1804 the Jacquard loom wove patterns read from punched cards. The pattern came from a person; the cloth came from the machine. The name and the mark come from those cards.
-
 ## Type
 
 - [type](https://github.com/machine-made/type): Weft, Sans, Heddle and Warp, typefaces made by code ([site](https://machine-made.github.io/type/))

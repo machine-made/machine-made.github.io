@@ -2,13 +2,14 @@
   "name": "openfluids",
   "owner": "openfluids",
   "line": "Open tools for fluid flows: state-of-the-art methods, ultra-modern low-memory code, for humans and agents.",
-  "blurb": "Open code for fluid mechanics.",
   "theme": {
     "ground": "#0d1116",
+    "surface": "#141a21",
+    "line": "#252c33",
     "text": "#e6eef2",
     "muted": "#8395a0",
     "accent": "#5cc8d6",
-    "font": "machine-made Sans"
+    "face": "heddle"
   },
   "nav": [
     {
@@ -32,6 +33,7 @@
   "groups": [
     {
       "title": "Stability",
+      "nav": "Stability",
       "projects": [
         {
           "repo": "linstabpy",
@@ -48,6 +50,7 @@
     },
     {
       "title": "Analysis",
+      "nav": "Analysis",
       "projects": [
         {
           "repo": "openmodalpy",
@@ -75,6 +78,7 @@
     },
     {
       "title": "Solvers",
+      "nav": "Solvers",
       "projects": [
         {
           "repo": "dolfinx-rans",
@@ -84,6 +88,7 @@
     },
     {
       "title": "Runs",
+      "nav": "Runs",
       "projects": [
         {
           "repo": "hpckit",

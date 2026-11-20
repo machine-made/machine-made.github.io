@@ -29,6 +29,7 @@ import sys
 import threading
 from itertools import pairwise
 from pathlib import Path
+from typing import Any
 
 from playwright.sync_api import BrowserContext, Page, sync_playwright
 
@@ -164,7 +165,7 @@ def system_fonts(context: BrowserContext, page: Page) -> list[str]:
     root = cdp.send("DOM.getDocument", {"depth": -1, "pierce": False})["root"]
     bad: list[str] = []
 
-    def walk(node: dict) -> None:
+    def walk(node: dict[str, Any]) -> None:
         if node.get("nodeName") in ("SCRIPT", "STYLE", "HEAD", "TITLE"):
             return
         kids = node.get("children", [])

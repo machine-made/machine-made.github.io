@@ -14,7 +14,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn, TypedDict
 
 ROOT = Path(__file__).resolve().parent
 # Never listed on any site.
@@ -22,7 +22,33 @@ NEVER = {"homebrew-tap"}
 FAMILIES = ("weft", "sans", "heddle", "warp")
 
 
-def die(message: str) -> None:
+class Release(TypedDict):
+    tagName: str
+    publishedAt: str
+    url: str
+
+
+class RepoFacts(TypedDict):
+    lang: str | None
+    release: Release | None
+    commit: str
+    releases: list[Release]
+
+
+class Facts(TypedDict):
+    fetched: str
+    repos: dict[str, RepoFacts]
+    families: dict[str, Release]
+
+
+def release(node: dict[str, Any]) -> Release:
+    """The three fields a page uses, each checked to be a string."""
+    if not all(isinstance(node.get(k), str) for k in ("tagName", "publishedAt", "url")):
+        die(f"a release lacks its tag, date or url: {json.dumps(node)[:200]}")
+    return {"tagName": node["tagName"], "publishedAt": node["publishedAt"], "url": node["url"]}
+
+
+def die(message: str) -> NoReturn:
     print(json.dumps({"error": message, "fix": "Check gh auth status and the network, then run again."}), file=sys.stderr)
     sys.exit(1)
 
@@ -77,7 +103,7 @@ def main() -> None:
     parts = [f'r{i}: repository(owner:"{o}", name:"{n}"){{ {FIELDS} }}' for i, (o, n) in enumerate(repos)]
     parts.append('typerepo: repository(owner:"machine-made", name:"type"){ ' + TYPE_RELEASES.format(after="") + " }")
     data = gh_graphql("query{" + "\n".join(parts) + "}")
-    result: dict[str, Any] = {"fetched": datetime.datetime.now(datetime.UTC).date().isoformat(), "repos": {}, "families": {}}
+    result: Facts = {"fetched": datetime.datetime.now(datetime.UTC).date().isoformat(), "repos": {}, "families": {}}
     for i, (owner, name) in enumerate(repos):
         node = data.get(f"r{i}")
         if not node or not node.get("defaultBranchRef"):
@@ -89,9 +115,9 @@ def main() -> None:
             releases.append(latest)
         result["repos"][f"{owner}/{name}"] = {
             "lang": (node["primaryLanguage"] or {}).get("name"),
-            "release": latest and {k: latest[k] for k in ("tagName", "publishedAt", "url")},
+            "release": release(latest) if latest else None,
             "commit": node["defaultBranchRef"]["target"]["committedDate"],
-            "releases": [{k: r[k] for k in ("tagName", "publishedAt", "url")} for r in releases],
+            "releases": [release(r) for r in releases],
         }
     # Every page of type releases: the newest publication of each family wins, whatever the creation order.
     page = (data.get("typerepo") or {}).get("releases") or {}
@@ -106,7 +132,7 @@ def main() -> None:
         if family not in FAMILIES or r["isDraft"] or r["isPrerelease"] or not r["publishedAt"]:
             continue
         if family not in result["families"] or r["publishedAt"] > result["families"][family]["publishedAt"]:
-            result["families"][family] = {k: r[k] for k in ("tagName", "publishedAt", "url")}
+            result["families"][family] = release(r)
     missing = [f for f in FAMILIES if f not in result["families"]]
     if missing:
         die(f"no release found for the type families {', '.join(missing)}")

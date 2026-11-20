@@ -15,12 +15,12 @@ export PYTHONDONTWRITEBYTECODE=1
 # machines write the same bytes. shots.py drives a browser through Playwright.
 UV="uv run --quiet --with fonttools==4.68.0 --with brotli==1.2.1 --with pillow==13.0.0"
 UV_SHOTS="uv run --quiet --with playwright==1.65.1"
-data=$(mktemp "${TMPDIR:-/tmp}/mm-data.XXXXXX")
-first=$(mktemp "${TMPDIR:-/tmp}/mm-gate.XXXXXX")
-second=$(mktemp "${TMPDIR:-/tmp}/mm-gate.XXXXXX")
-brand_one=$(mktemp -d "${TMPDIR:-/tmp}/mm-gate.XXXXXX")
-brand_two=$(mktemp -d "${TMPDIR:-/tmp}/mm-gate.XXXXXX")
-shots=$(mktemp -d "${TMPDIR:-/tmp}/mm-shots.XXXXXX")
+data=$(mktemp -t mm-data.XXXXXX)
+first=$(mktemp -t mm-gate.XXXXXX)
+second=$(mktemp -t mm-gate.XXXXXX)
+brand_one=$(mktemp -d -t mm-gate.XXXXXX)
+brand_two=$(mktemp -d -t mm-gate.XXXXXX)
+shots=$(mktemp -d -t mm-shots.XXXXXX)
 trap 'rm -rf "$data" "$first" "$second" "$brand_one" "$brand_two" "$shots"' EXIT
 hashes() {
   python3 - "$1" <<'PY'
@@ -86,7 +86,7 @@ fi
 browser . "$shots/machine-made"
 # Every house in houses/ builds from this generator: twice, the same, then its own checks.
 for house in houses/*/; do
-  copy=$(mktemp -d "${TMPDIR:-/tmp}/mm-house.XXXXXX")
+  copy=$(mktemp -d -t mm-house.XXXXXX)
   cp "$house/site.json" "$house/allow.json" "$copy/"
   $UV python3 build.py --site "$copy" --data "$data" > /dev/null
   hashes "$copy/docs" > "$first"

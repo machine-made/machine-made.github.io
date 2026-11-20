@@ -19,7 +19,7 @@ if [ "$target" = "$(pwd)" ]; then
 fi
 [ -f "houses/$house/site.json" ] || { echo "houses/$house/site.json is missing"; exit 2; }
 [ -d "$target/.git" ] || { echo "$target is not a git repository"; exit 2; }
-work=$(mktemp -d "${TMPDIR:-/tmp}/mm-publish.XXXXXX")
+work=$(mktemp -d -t mm-publish.XXXXXX)
 trap 'rm -rf "$work"' EXIT
 if [ -z "$facts" ]; then
   facts="$work/facts.json"
